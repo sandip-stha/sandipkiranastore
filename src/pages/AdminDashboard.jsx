@@ -11,8 +11,11 @@ export default function AdminDashboard() {
 
   // Items State
   const [newCat, setNewCat] = useState('');
-  const [productForm, setProductForm] = useState({ name: '', price: '', category: '', image: '' });
   const [categories, setCategories] = useState([]);
+  
+  // Product State (Updated for file upload)
+  const [productForm, setProductForm] = useState({ name: '', price: '', category: '', image: null });
+  const [imagePreview, setImagePreview] = useState(null);
 
   // Page load huda token check garne ra categories tanne
   useEffect(() => {
@@ -69,7 +72,7 @@ export default function AdminDashboard() {
       const token = localStorage.getItem('adminToken');
       const response = await axios.post('https://kiranastore-luig.onrender.com/api/categories', 
         { name: newCat },
-        { headers: { Authorization: `Bearer ${token}` } } // 👈 Token pathayeko
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       
       alert(`"${response.data.name}" category successfully save vayo! ✅`);
@@ -82,21 +85,45 @@ export default function AdminDashboard() {
     }
   };
 
-  // 🛒 Naya Product Database ma save garna (With Token)
+  // 🖼️ Handle Local Image Selection
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProductForm({ ...productForm, image: file });
+      setImagePreview(URL.createObjectURL(file)); // Show local preview
+    }
+  };
+
+  // 🛒 Naya Product Database ma save garna (With FormData for File)
   const handleSaveProduct = async () => {
     if (!productForm.name || !productForm.price || !productForm.category || !productForm.image) {
-      return alert("Kripaya sabai product details fill garnuhos!");
+      return alert("Kripaya sabai product details ra image fill garnuhos!");
     }
+    
+    // File pathauna FormData use garnu parcha
+    const formData = new FormData();
+    formData.append('name', productForm.name);
+    formData.append('price', productForm.price);
+    formData.append('category', productForm.category);
+    formData.append('image', productForm.image); // File appended here
     
     try {
       const token = localStorage.getItem('adminToken');
       await axios.post('https://kiranastore-luig.onrender.com/api/products', 
-        productForm,
-        { headers: { Authorization: `Bearer ${token}` } } // 👈 Token pathayeko
+        formData,
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data' // Required for file uploads
+          } 
+        } 
       );
       
       alert("Product store ma successfully upload vayo! 🛒");
-      setProductForm({ ...productForm, name: '', price: '', image: '' }); // Form clear garne
+      
+      // Form ra Preview clear garne
+      setProductForm({ name: '', price: '', category: categories[0]?.name || '', image: null }); 
+      setImagePreview(null);
       
     } catch (error) {
       console.error("Error saving product:", error);
@@ -175,7 +202,7 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className="flex-1 p-8 overflow-y-auto h-screen">
         
-        {/* Mobile Header (Shows only on small screens) */}
+        {/* Mobile Header */}
         <div className="md:hidden flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border">
           <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
             <LayoutDashboard /> Admin
@@ -256,29 +283,29 @@ export default function AdminDashboard() {
                     onChange={(e) => setProductForm({...productForm, category: e.target.value})}
                     className="w-full p-4 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition font-medium bg-white"
                   >
-                    {categories.length === 0 && <option value="">No categories available. Please add one first.</option>}
+                    {categories.length === 0 && <option value="">No categories available.</option>}
                     {categories.map((cat) => (
                       <option key={cat._id} value={cat.name}>{cat.name}</option>
                     ))}
                   </select>
                 </div>
                 
+                {/* Updated File Input */}
                 <div>
-                  <label className="block text-gray-600 font-semibold mb-3">Image URL</label>
+                  <label className="block text-gray-600 font-semibold mb-3">Upload Product Image</label>
                   <input 
-                    type="text" 
-                    value={productForm.image}
-                    onChange={(e) => setProductForm({...productForm, image: e.target.value})}
-                    placeholder="https://images.unsplash.com/..." 
-                    className="w-full p-4 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition font-medium text-sm" 
+                    type="file" 
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 transition font-medium file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
                   />
                 </div>
 
-                {/* Image Preview (Optional flair) */}
-                {productForm.image && (
+                {/* Local Image Preview */}
+                {imagePreview && (
                   <div className="md:col-span-2 mt-2 p-4 bg-gray-50 rounded-xl border border-gray-200 flex items-center gap-4">
-                    <img src={productForm.image} alt="Preview" className="w-16 h-16 object-cover rounded-lg shadow" onError={(e) => e.target.style.display='none'} />
-                    <span className="text-sm text-gray-500 font-medium">Image Preview</span>
+                    <img src={imagePreview} alt="Preview" className="w-16 h-16 object-cover rounded-lg shadow" />
+                    <span className="text-sm text-gray-500 font-medium">Local file selected and ready to upload</span>
                   </div>
                 )}
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, Store, Search, Menu, Phone, MapPin, Clock } from 'lucide-react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 
 export default function StoreFront() {
   const [cart, setCart] = useState([]);
@@ -65,14 +66,15 @@ export default function StoreFront() {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2 text-2xl font-black tracking-tight">
               <Store size={32} className="text-yellow-400" />
-              <span className="hidden sm:block">Sandip Kirana Store</span>
-              <span className="sm:hidden text-xl">Sandip Kirana</span>
+              <span className="hidden sm:block">सन्दिप किराना स्टोर </span>
+              <span className="sm:hidden text-xl">सन्दिप किराना</span>
             </div>
 
             <div className="hidden md:flex space-x-8 font-semibold">
               <a href="#" className="text-yellow-400 border-b-2 border-yellow-400 pb-1">Shop</a>
               <a href="#about" className="hover:text-yellow-300 transition">About Us</a>
               <a href="#contact" className="hover:text-yellow-300 transition">Contact</a>
+              <Link to="/admin" className="hover:text-yellow-300 transition">Admin</Link>
             </div>
 
             <div className="flex items-center gap-4">
@@ -108,10 +110,11 @@ export default function StoreFront() {
             <div className="md:w-2/3 relative z-10">
               <span className="bg-yellow-400 text-blue-900 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 inline-block">Free Local Delivery</span>
               <h1 className="text-4xl md:text-5xl font-extrabold mb-4 text-white leading-tight">
-                Fresh Groceries, <br/> Delivered Fast. 🚀
+                ताजा किराना सामान, <br/>
               </h1>
+              <h1 className="text-4xl md:text-5xl font-extrabold mb-4 mt-4 text-white leading-tight"> छिटो डेलिभरी 🧑‍🏍📦</h1>
               <p className="text-lg text-blue-100 mb-8 max-w-md">
-                Chamala, Daal, ra hajur ko dainik aawasyakata ka sabai saman haru sasto ra sulav mulya ma!
+                चामल, दाल, तेल , ग्यास र हजुर को दैनिक आवस्यकता का सबै समान हरु सस्तो र सुलव मुल्य मा! !
               </p>
               
               {/* Search Bar in Hero */}
@@ -244,7 +247,7 @@ export default function StoreFront() {
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <div className="flex items-center gap-2 text-2xl font-black text-white mb-4">
-              <Store className="text-yellow-400" /> Sandip Kirana
+              <Store className="text-yellow-400" /> सन्दिप किराना स्टोर 
             </div>
             <p className="text-gray-400 leading-relaxed">Hajur ko dainik upabhogya saman ko viswasilo sathi. Sasto, sulav ra fresh saman haru hajur kai aagan ma.</p>
           </div>
@@ -252,8 +255,8 @@ export default function StoreFront() {
             <h3 className="text-white font-bold text-lg mb-4">Contact Info</h3>
             <ul className="space-y-3">
               <li className="flex items-center gap-3"><Phone size={18} className="text-blue-400"/> +977 9860428834</li>
-              <li className="flex items-center gap-3"><MapPin size={18} className="text-blue-400"/> Tarakeshwar, Bagmati Province</li>
-              <li className="flex items-center gap-3"><Clock size={18} className="text-blue-400"/> Sun - Sat (7:00 AM - 9:00 PM)</li>
+              <li className="flex items-center gap-3"><MapPin size={18} className="text-blue-400"/> सुर्यबिनायक्,१, भक्तपुर </li>
+              <li className="flex items-center gap-3"><Clock size={18} className="text-blue-400"/> Sun - Sat (6:00 AM - 8:00 PM)</li>
             </ul>
           </div>
           <div>
@@ -266,7 +269,7 @@ export default function StoreFront() {
           </div>
         </div>
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-500">
-          © 2026 Sandip Kirana Store. All rights reserved.
+          © 2026 सन्दिप किराना स्टोर . All rights reserved.
         </div>
       </footer>
     </div>
