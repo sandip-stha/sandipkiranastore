@@ -1,29 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Store, Search, Menu, Phone, MapPin, Clock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ShoppingCart, Plus, Minus, Trash2, Store, Search, Menu, Phone, MapPin, Clock, X, Info, Share2, Download, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import html2canvas from 'html2canvas'; // 🟢 NAYA: Bill lai photo banauna
 
 export default function StoreFront() {
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => {
+    const savedCart = localStorage.getItem('sandipKiranaCart');
+    return savedCart ? JSON.parse(savedCart) : [];
+  });
+  
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+  
   const [categories, setCategories] = useState(['All']);
   const [products, setProducts] = useState([]);
+  
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  
+  // 🟢 NAYA STATE: Invoice Modal ra Generation ko lagi
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const invoiceRef = useRef(null);
 
   const WHATSAPP_NUMBER = "+9779860428834"; 
 
   useEffect(() => {
     axios.get('https://kiranastore-luig.onrender.com/api/categories')
       .then(res => setCategories(['All', ...res.data.map(c => c.name)]))
-      .catch(err => console.error("Categories lyauna sakena:", err));
+      .catch(err => console.error("Categories fetch error:", err));
 
     axios.get('https://kiranastore-luig.onrender.com/api/products')
       .then(res => setProducts(res.data))
-      .catch(err => console.error("Products lyauna sakena:", err));
+      .catch(err => console.error("Products fetch error:", err));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('sandipKiranaCart', JSON.stringify(cart));
+  }, [cart]);
 
   const addToCart = (product) => {
     const existing = cart.find(item => item._id === product._id);
@@ -35,36 +51,234 @@ export default function StoreFront() {
     }
   };
 
-  const updateQty = (id, delta) => setCart(cart.map(item => item._id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item));
+  const updateQty = (id, delta) => {
+    setCart(cart.map(item => {
+      if (item._id === id) {
+        const newQty = Number(item.qty) + delta;
+        return { ...item, qty: newQty > 0 ? newQty : 1 }; 
+      }
+      return item;
+    }));
+  };
+  
   const removeItem = (id) => setCart(cart.filter(item => item._id !== id));
   
   const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+  const totalItems = cart.reduce((sum, item) => sum + Number(item.qty), 0);
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = 
+      product.name.toLowerCase().includes(searchLower) || 
+      (product.category && product.category.toLowerCase().includes(searchLower)) ||
+      (product.description && product.description.toLowerCase().includes(searchLower));
+
     return matchesCategory && matchesSearch;
   });
 
-  const handleCheckout = () => {
-    if (cart.length === 0) return alert("Cart khali cha!");
-    let message = "Namaste! Sandip Kirana Store bata maile order garna chaheko:\n\n";
-    cart.forEach((item, index) => {
-      message += `${index + 1}. ${item.name} - ${item.qty} pc(s) (Rs ${item.price * item.qty})\n`;
-    });
-    message += `\n*Total Bill: Rs ${totalAmount}*\n\nKripaya yo order confirm garidinu hola.`;
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+  // 🟢 NAYA LOGIC: Bill lai Image ma convert garera Share/Download garne
+  const sendBillAsPhoto = async () => {
+    if (!invoiceRef.current) return;
+    setIsGenerating(true);
+    
+    try {
+      // HTML lai High Quality Image ma convert garne
+      const canvas = await html2canvas(invoiceRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], `Sandip_Kirana_Bill_${Date.now()}.png`, { type: 'image/png' });
+
+        // Mobile device ho bhane direct Share menu kholne (WhatsApp select garna milcha)
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Sandip Kirana Store - Order Bill',
+            text: `Namaste! Mero order ko bill pathayeko chu. Kripaya confirm garidinu hola.`,
+          });
+        } else {
+          // Desktop ko lagi Image auto-download garne ra WhatsApp Web kholne
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `Sandip_Kirana_Bill_${Date.now()}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+
+          alert("Bill download vayo! Aba WhatsApp ma yo photo lai attach garera pathaunuhos.");
+          window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=Namaste! Mero order ko bill maile download garera yaha attach gardai chu. Kripaya heridinu hola.`, '_blank');
+        }
+      }, 'image/png');
+    } catch (error) {
+      console.error("Bill generate huda error aayo:", error);
+      alert("Bill generate garna sakiyena.");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
+  const handlePreviewBill = () => {
+    if (cart.length === 0) return alert("Cart khali cha!");
+    setIsCartOpen(false); // Cart close garne
+    setShowInvoice(true); // Bill Modal kholne
+  };
+
+  // Ajako miti nikalne
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+
   return (
-    <div className="min-h-screen bg-gray-50 font-sans flex flex-col">
+    <div className="min-h-screen bg-gray-50 font-sans flex flex-col overflow-x-hidden">
       
+      {/* 🌟 NAYA UPDATE: INVOICE / BILL PREVIEW MODAL 🌟 */}
+      {showInvoice && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-gray-100 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="bg-white px-6 py-4 border-b flex justify-between items-center z-10 sticky top-0">
+              <h3 className="font-black text-xl text-gray-800">Preview Bill</h3>
+              <button onClick={() => setShowInvoice(false)} className="bg-gray-100 p-2 rounded-full text-gray-600 hover:bg-red-100 hover:text-red-500 transition">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Scrollable Bill Content */}
+            <div className="p-6 overflow-y-auto flex-1 flex justify-center bg-gray-200">
+              {/* 🧾 ACTUAL INVOICE DESIGN TO BE CAPTURED 🧾 */}
+              <div 
+                ref={invoiceRef} 
+                className="bg-white p-8 shadow-sm w-full max-w-md mx-auto"
+                style={{ fontFamily: "'Courier New', Courier, monospace" }} // Gives that authentic bill look
+              >
+                <div className="text-center mb-6 border-b-2 border-dashed border-gray-300 pb-6">
+                  <div className="flex justify-center mb-2">
+                    <Store size={40} className="text-blue-800" />
+                  </div>
+                  <h1 className="text-2xl font-black text-gray-900 uppercase tracking-widest">Sandip Kirana</h1>
+                  <p className="text-sm text-gray-600 mt-1">Suryabinayak-1, Bhaktapur</p>
+                  <p className="text-sm text-gray-600">Phone: {WHATSAPP_NUMBER}</p>
+                </div>
+                
+                <div className="flex justify-between items-center mb-6 text-sm font-bold text-gray-700">
+                  <span>Date: {currentDate}</span>
+                  <span>Invoice #SK-{Math.floor(1000 + Math.random() * 9000)}</span>
+                </div>
+
+                <table className="w-full text-left mb-6 border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-black text-sm uppercase tracking-wider text-gray-800">
+                      <th className="py-2">Item</th>
+                      <th className="py-2 text-center">Qty</th>
+                      <th className="py-2 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.map((item, idx) => (
+                      <tr key={idx} className="border-b border-gray-200 text-sm font-bold text-gray-700">
+                        <td className="py-3">
+                          {item.name} <br/>
+                          <span className="text-xs text-gray-500 font-normal">@ {item.price} / {item.quantity}</span>
+                        </td>
+                        <td className="py-3 text-center">{item.qty}</td>
+                        <td className="py-3 text-right">Rs {item.price * item.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="border-t-2 border-black pt-4 mb-8">
+                  <div className="flex justify-between items-center text-xl font-black text-gray-900">
+                    <span>GRAND TOTAL</span>
+                    <span>Rs {totalAmount}</span>
+                  </div>
+                </div>
+
+                <div className="text-center border-t-2 border-dashed border-gray-300 pt-6">
+                  <p className="text-sm font-bold text-gray-800">Thank you for your order!</p>
+                  <p className="text-xs text-gray-500 mt-1">Visit Again</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer (Action Buttons) */}
+            <div className="bg-white p-4 border-t sticky bottom-0 z-10 flex gap-3">
+              <button 
+                onClick={() => setShowInvoice(false)}
+                className="flex-1 bg-gray-100 text-gray-800 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
+              >
+                Back to Edit
+              </button>
+              <button 
+                onClick={sendBillAsPhoto}
+                disabled={isGenerating}
+                className="flex-[2] bg-green-500 text-white py-3 rounded-xl font-black hover:bg-green-600 transition shadow-lg shadow-green-500/30 flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? (
+                  <><Loader2 size={20} className="animate-spin" /> Generating Bill...</>
+                ) : (
+                  <><Share2 size={20} /> Send Bill Photo to WhatsApp</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Details Modal (Purano jastai) */}
+      {selectedProduct && !showInvoice && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col md:flex-row relative animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setSelectedProduct(null)}
+              className="absolute top-4 right-4 bg-gray-100 p-2 rounded-full text-gray-600 hover:bg-red-100 hover:text-red-500 transition z-10"
+            >
+              <X size={24} />
+            </button>
+            
+            <div className="md:w-1/2 bg-gray-100">
+              <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-64 md:h-full object-cover" />
+            </div>
+            
+            <div className="md:w-1/2 p-8 flex flex-col justify-center">
+              <span className="text-xs text-blue-600 font-black tracking-widest uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-full">{selectedProduct.category}</span>
+              <h2 className="text-3xl font-black text-gray-800 mb-2 leading-tight">{selectedProduct.name}</h2>
+              <div className="text-3xl font-black text-blue-600 mb-4">Rs {selectedProduct.price}</div>
+              
+              <div className="bg-yellow-50 text-yellow-800 p-3 rounded-xl font-medium mb-6 flex items-center gap-2 border border-yellow-200">
+                <Info size={20} className="text-yellow-600" />
+                <span>Base Unit: <strong>{selectedProduct.quantity || "N/A"}</strong></span>
+              </div>
+              
+              <div className="mb-8 flex-1">
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Product Description</h4>
+                <p className="text-gray-700 leading-relaxed">
+                  {selectedProduct.description || "Yas product ko barema dherai jankari uplabda chaina."}
+                </p>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  addToCart(selectedProduct);
+                  setSelectedProduct(null); 
+                }}
+                className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+              >
+                <ShoppingCart size={24} /> Add to Cart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar */}
-      <nav className="bg-blue-800 text-white shadow-xl sticky top-0 z-50">
+      <nav className="bg-blue-800 text-white shadow-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2 text-2xl font-black tracking-tight">
+            <div className="flex items-center gap-2 text-2xl font-black tracking-tight cursor-pointer" onClick={() => window.scrollTo(0,0)}>
               <Store size={32} className="text-yellow-400" />
               <span className="hidden sm:block">सन्दिप किराना स्टोर </span>
               <span className="sm:hidden text-xl">सन्दिप किराना</span>
@@ -80,46 +294,52 @@ export default function StoreFront() {
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setIsCartOpen(!isCartOpen)}
-                className="relative p-2 bg-blue-700 rounded-full hover:bg-blue-600 transition shadow-inner flex items-center gap-2 px-5"
+                className="relative p-2 bg-blue-700 rounded-full hover:bg-blue-600 transition shadow-inner flex items-center gap-2 px-5 group"
               >
-                <ShoppingCart size={22} />
+                <ShoppingCart size={22} className="group-hover:scale-110 transition" />
                 <span className="font-bold hidden sm:block text-lg">Rs {totalAmount}</span>
                 {totalItems > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-blue-800 shadow-sm">
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-blue-800 shadow-sm animate-pulse">
                     {totalItems}
                   </span>
                 )}
               </button>
               
-              <button className="md:hidden p-1" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-                <Menu size={28} />
+              <button className="md:hidden p-1 hover:bg-blue-700 rounded-lg transition" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+                {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
               </button>
             </div>
+          </div>
+        </div>
+
+        <div className={`md:hidden absolute w-full left-0 bg-blue-900 border-b border-blue-700 shadow-2xl transition-all duration-300 ease-in-out overflow-hidden ${isMobileMenuOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="px-4 py-4 space-y-4">
+            <a href="#" onClick={() => setIsMobileMenuOpen(false)} className="block text-yellow-400 font-bold p-2 bg-blue-800 rounded-lg">Shop</a>
+            <a href="#about" onClick={() => setIsMobileMenuOpen(false)} className="block text-white hover:text-yellow-300 transition font-semibold p-2">About Us</a>
+            <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="block text-white hover:text-yellow-300 transition font-semibold p-2">Contact</a>
+            <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block text-white hover:text-yellow-300 transition font-semibold p-2">Admin Panel</Link>
           </div>
         </div>
       </nav>
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto p-4 py-6 flex-1 w-full flex flex-col lg:flex-row gap-8 relative">
-        
-        {/* Left Side: Hero + Products */}
-        <div className="flex-1">
+        <div className="flex-1 w-full">
           
-          {/* 🌟 PREMIUM HERO BANNER 🌟 */}
+          {/* Hero Banner */}
           <div className="bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800 rounded-3xl p-8 mb-8 shadow-2xl flex flex-col md:flex-row items-center justify-between overflow-hidden relative">
             <div className="md:w-2/3 relative z-10">
               <span className="bg-yellow-400 text-blue-900 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 inline-block">Free Local Delivery</span>
               <h1 className="text-4xl md:text-5xl font-extrabold mb-4 text-white leading-tight">
                 ताजा किराना सामान, <br/>
+                <span className="text-yellow-300 mt-2 block">छिटो डेलिभरी 🧑‍🏍📦</span>
               </h1>
-              <h1 className="text-4xl md:text-5xl font-extrabold mb-4 mt-4 text-white leading-tight"> छिटो डेलिभरी 🧑‍🏍📦</h1>
               <p className="text-lg text-blue-100 mb-8 max-w-md">
-                चामल, दाल, तेल , ग्यास र हजुर को दैनिक आवस्यकता का सबै समान हरु सस्तो र सुलव मुल्य मा! !
+                चामल, दाल, तेल, ग्यास र हजुर को दैनिक आवस्यकता का सबै समान हरु सस्तो र सुलव मुल्य मा!
               </p>
               
-              {/* Search Bar in Hero */}
-              <div className="relative w-full max-w-md bg-white rounded-xl shadow-lg flex items-center overflow-hidden border-2 border-transparent focus-within:border-yellow-400 transition-all">
-                <Search className="text-gray-400 ml-4" size={24} />
+              <div className="relative w-full max-w-md bg-white rounded-xl shadow-lg flex items-center overflow-hidden border-2 border-transparent focus-within:border-yellow-400 transition-all group">
+                <Search className="text-gray-400 ml-4 group-focus-within:text-blue-600 transition" size={24} />
                 <input 
                   type="text" 
                   placeholder="K khojdai hunuhuncha?..." 
@@ -133,7 +353,6 @@ export default function StoreFront() {
             <div className="md:w-1/3 mt-8 md:mt-0 relative z-10 hidden md:block">
               <img src="https://scontent.fktm17-1.fna.fbcdn.net/v/t39.30808-6/480559092_594232123435745_383012169672590612_n.jpg?stp=dst-jpg_tt6&cstp=mx1158x2048&ctp=s1158x2048&_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=R_d_qVcN2K8Q7kNvwH0zNRP&_nc_oc=Adqj1Cmz1eQ_tArCZd-eU5EMiYHd7wKEAQDvcvlmDVm2vWPiO_SzxN3NGfK0JW8q5-1Vu1ofZYyUiDT60rEj0iy8&_nc_zt=23&_nc_ht=scontent.fktm17-1.fna&_nc_gid=kAX7SIV8Dz7HGCACXbjiVA&_nc_ss=7b2a8&oh=00_Af9h2bzTnc-M-eWwJfnHMtz9hWLcTCpLnVryGWOKQOmozQ&oe=6A3899EB" alt="Groceries Basket" className="rounded-2xl shadow-2xl transform rotate-3 hover:rotate-0 transition duration-500 hover:scale-105" />
             </div>
-            {/* Background Decorative Element */}
             <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
           </div>
 
@@ -159,18 +378,27 @@ export default function StoreFront() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {filteredProducts.length > 0 ? (
               filteredProducts.map(product => (
-                <div key={product._id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col group">
+                <div key={product._id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col group cursor-pointer" onClick={() => setSelectedProduct(product)}>
                   <div className="relative overflow-hidden bg-gray-100">
-                    <img src={product.image} alt={product.name} className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <img src={product.image} alt={product.name} className="w-full h-40 md:h-48 object-cover group-hover:scale-110 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                      <span className="bg-white text-gray-900 font-bold py-2 px-4 rounded-full text-sm">View Details</span>
+                    </div>
                   </div>
-                  <div className="p-5 flex flex-col flex-1">
-                    <span className="text-[10px] text-blue-600 font-bold tracking-widest uppercase mb-2 bg-blue-50 w-max px-2 py-1 rounded">{product.category}</span>
-                    <h3 className="text-base font-bold text-gray-800 flex-1 leading-snug">{product.name}</h3>
-                    <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                      <div className="text-xl font-black text-gray-900">Rs {product.price}</div>
+                  <div className="p-4 md:p-5 flex flex-col flex-1">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] text-blue-600 font-bold tracking-widest uppercase bg-blue-50 px-2 py-1 rounded">{product.category}</span>
+                      <span className="text-[10px] text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded truncate max-w-[80px]">{product.quantity || 'Unit'}</span>
+                    </div>
+                    <h3 className="text-sm md:text-base font-bold text-gray-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
+                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                      <div className="text-lg md:text-xl font-black text-gray-900">Rs {product.price}</div>
                       <button 
-                        onClick={() => addToCart(product)}
-                        className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 hover:shadow-lg transition-all active:scale-95"
+                        onClick={(e) => {
+                          e.stopPropagation(); 
+                          addToCart(product);
+                        }}
+                        className="bg-blue-600 text-white p-2 md:p-2.5 rounded-xl hover:bg-blue-700 hover:shadow-lg transition-all active:scale-95"
                       >
                         <Plus size={20} />
                       </button>
@@ -180,7 +408,7 @@ export default function StoreFront() {
               ))
             ) : (
               <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
-                <Search size={64} className="mx-auto mb-4 text-gray-300" />
+                <Search size={64} className="mx-auto mb-4 text-gray-300 animate-bounce" />
                 <p className="text-xl font-bold text-gray-500">Tapai le khojnu vayeko saman vetiyena.</p>
               </div>
             )}
@@ -189,52 +417,56 @@ export default function StoreFront() {
 
         {/* Right Side: Shopping Cart Sidebar */}
         {isCartOpen && (
-          <div className="lg:w-[400px] w-full bg-white p-6 rounded-3xl shadow-2xl border border-gray-100 h-fit lg:sticky lg:top-24 z-40 fixed bottom-0 left-0 max-h-[85vh] overflow-y-auto lg:max-h-[calc(100vh-120px)] flex flex-col">
+          <div className="lg:w-[400px] w-full bg-white p-6 rounded-t-3xl lg:rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] lg:shadow-2xl border border-gray-100 h-fit lg:sticky lg:top-24 z-30 fixed bottom-0 left-0 max-h-[85vh] overflow-y-auto lg:max-h-[calc(100vh-120px)] flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-right duration-300">
             <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 pb-4 border-b">
-              <h2 className="text-2xl font-black flex items-center gap-3 text-gray-800">
+              <h2 className="text-xl md:text-2xl font-black flex items-center gap-3 text-gray-800">
                 <ShoppingCart className="text-blue-600" size={28} /> Your Cart
               </h2>
-              <button onClick={() => setIsCartOpen(false)} className="lg:hidden bg-gray-100 p-2 rounded-full text-gray-500 hover:text-red-500 hover:bg-red-50">
-                <Trash2 size={20} />
+              <button onClick={() => setIsCartOpen(false)} className="lg:hidden bg-gray-100 p-2 rounded-full text-gray-500 hover:text-red-500 hover:bg-red-50 transition">
+                <X size={20} />
               </button>
             </div>
             
             {cart.length === 0 ? (
               <div className="text-center py-12 flex-1 flex flex-col items-center justify-center">
-                <img src="https://cdn-icons-png.flaticon.com/512/11329/11329060.png" alt="Empty Cart" className="w-32 mb-6 opacity-40 grayscale"/>
+                <img src="https://cdn-icons-png.flaticon.com/512/11329/11329060.png" alt="Empty Cart" className="w-32 mb-6 opacity-40 grayscale hover:grayscale-0 transition duration-500"/>
                 <p className="text-gray-500 font-medium text-lg">Cart khali cha!</p>
               </div>
             ) : (
               <div className="space-y-4 flex-1">
                 {cart.map(item => (
-                  <div key={item._id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
-                    <img src={item.image} alt={item.name} className="w-12 h-12 rounded-lg object-cover mr-3 border" />
+                  <div key={item._id} className="flex justify-between items-center bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+                    <img src={item.image} alt={item.name} className="w-12 h-12 md:w-16 md:h-16 rounded-lg object-cover mr-3 border" />
                     <div className="flex-1 pr-2">
                       <h4 className="font-bold text-sm text-gray-800 line-clamp-1">{item.name}</h4>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Base: {item.quantity}</p>
                       <p className="text-blue-700 text-sm font-black mt-1">Rs {item.price * item.qty}</p>
                     </div>
-                    <div className="flex items-center gap-1 bg-gray-50 border rounded-lg p-1">
-                      <button onClick={() => updateQty(item._id, -1)} className="p-1 text-gray-500 hover:text-blue-600 bg-white rounded shadow-sm"><Minus size={14}/></button>
-                      <span className="font-bold w-6 text-center text-sm">{item.qty}</span>
-                      <button onClick={() => updateQty(item._id, 1)} className="p-1 text-gray-500 hover:text-blue-600 bg-white rounded shadow-sm"><Plus size={14}/></button>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-1 bg-gray-50 border rounded-lg p-1">
+                        <button onClick={() => updateQty(item._id, -1)} className="p-1 text-gray-500 hover:text-blue-600 bg-white rounded shadow-sm transition active:scale-90"><Minus size={14}/></button>
+                        <span className="font-bold w-6 text-center text-sm">{item.qty}</span>
+                        <button onClick={() => updateQty(item._id, 1)} className="p-1 text-gray-500 hover:text-blue-600 bg-white rounded shadow-sm transition active:scale-90"><Plus size={14}/></button>
+                      </div>
                     </div>
-                    <button onClick={() => removeItem(item._id)} className="p-2 text-red-400 hover:text-red-600 ml-2 hover:bg-red-50 rounded-lg transition"><Trash2 size={18}/></button>
+                    <button onClick={() => removeItem(item._id)} className="p-2 text-red-400 hover:text-red-600 ml-2 hover:bg-red-50 rounded-lg transition active:scale-90"><Trash2 size={18}/></button>
                   </div>
                 ))}
               </div>
             )}
             
             {cart.length > 0 && (
-              <div className="pt-6 mt-6 border-t-2 border-dashed border-gray-200 bg-white sticky bottom-0">
+              <div className="pt-6 mt-6 border-t-2 border-dashed border-gray-200 bg-white sticky bottom-0 z-10 pb-2">
                 <div className="flex justify-between items-end mb-6">
                   <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">Total Amount</span>
                   <span className="text-3xl font-black text-blue-700">Rs {totalAmount}</span>
                 </div>
+                {/* 🟢 NAYA UPDATE: Direct Checkout ko satta Preview Bill kholne */}
                 <button 
-                  onClick={handleCheckout}
-                  className="w-full bg-green-500 text-white py-4 rounded-xl font-black text-lg hover:bg-green-600 transition-all shadow-lg shadow-green-500/30 flex justify-center items-center gap-3 hover:-translate-y-1"
+                  onClick={handlePreviewBill}
+                  className="w-full bg-green-500 text-white py-4 rounded-xl font-black text-lg hover:bg-green-600 transition-all shadow-lg shadow-green-500/30 flex justify-center items-center gap-3 hover:-translate-y-1 active:scale-95"
                 >
-                  Order via WhatsApp
+                  Generate Invoice & Order
                 </button>
               </div>
             )}
@@ -254,17 +486,17 @@ export default function StoreFront() {
           <div>
             <h3 className="text-white font-bold text-lg mb-4">Contact Info</h3>
             <ul className="space-y-3">
-              <li className="flex items-center gap-3"><Phone size={18} className="text-blue-400"/> +977 9860428834</li>
-              <li className="flex items-center gap-3"><MapPin size={18} className="text-blue-400"/> सुर्यबिनायक्,१, भक्तपुर </li>
+              <li className="flex items-center gap-3 hover:text-white transition cursor-pointer"><Phone size={18} className="text-blue-400"/> +977 9860428834</li>
+              <li className="flex items-center gap-3 hover:text-white transition cursor-pointer"><MapPin size={18} className="text-blue-400"/> सुर्यबिनायक्,१, भक्तपुर </li>
               <li className="flex items-center gap-3"><Clock size={18} className="text-blue-400"/> Sun - Sat (6:00 AM - 8:00 PM)</li>
             </ul>
           </div>
           <div>
             <h3 className="text-white font-bold text-lg mb-4">Quick Links</h3>
             <ul className="space-y-2">
-              <li><a href="#" className="hover:text-white transition">Home</a></li>
-              <li><a href="#" className="hover:text-white transition">Shop Products</a></li>
-              <li><a href="#" className="hover:text-white transition">Terms & Conditions</a></li>
+              <li><a href="#" className="hover:text-yellow-400 transition">Home</a></li>
+              <li><a href="#" className="hover:text-yellow-400 transition">Shop Products</a></li>
+              <li><a href="#" className="hover:text-yellow-400 transition">Terms & Conditions</a></li>
             </ul>
           </div>
         </div>
