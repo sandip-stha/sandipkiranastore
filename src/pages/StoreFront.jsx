@@ -73,6 +73,7 @@ export default function StoreFront() {
               <a href="#" className="text-yellow-400 border-b-2 border-yellow-400 pb-1">Shop</a>
               <a href="#about" className="hover:text-yellow-300 transition">About Us</a>
               <a href="#contact" className="hover:text-yellow-300 transition">Contact</a>
+              <a href="/admin" className="hover:text-yellow-300 transition">Admin</a>
             </div>
 
             <div className="flex items-center gap-4">
