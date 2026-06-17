@@ -131,7 +131,7 @@ export default function StoreFront() {
             </div>
             
             <div className="md:w-1/3 mt-8 md:mt-0 relative z-10 hidden md:block">
-              <img src="https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&w=500&q=80" alt="Groceries Basket" className="rounded-2xl shadow-2xl transform rotate-3 hover:rotate-0 transition duration-500 hover:scale-105" />
+              <img src="https://scontent.fktm17-1.fna.fbcdn.net/v/t39.30808-6/480559092_594232123435745_383012169672590612_n.jpg?stp=dst-jpg_tt6&cstp=mx1158x2048&ctp=s1158x2048&_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=R_d_qVcN2K8Q7kNvwH0zNRP&_nc_oc=Adqj1Cmz1eQ_tArCZd-eU5EMiYHd7wKEAQDvcvlmDVm2vWPiO_SzxN3NGfK0JW8q5-1Vu1ofZYyUiDT60rEj0iy8&_nc_zt=23&_nc_ht=scontent.fktm17-1.fna&_nc_gid=kAX7SIV8Dz7HGCACXbjiVA&_nc_ss=7b2a8&oh=00_Af9h2bzTnc-M-eWwJfnHMtz9hWLcTCpLnVryGWOKQOmozQ&oe=6A3899EB" alt="Groceries Basket" className="rounded-2xl shadow-2xl transform rotate-3 hover:rotate-0 transition duration-500 hover:scale-105" />
             </div>
             {/* Background Decorative Element */}
             <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
