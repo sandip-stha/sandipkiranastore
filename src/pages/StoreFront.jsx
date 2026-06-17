@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Store, Search, Menu, Phone, MapPin, Clock, X, Info, Share2, Download, Loader2 } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Store, Search, Menu, Phone, MapPin, Clock, X, Info, Share2, Download, Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import html2canvas from 'html2canvas'; // 🟢 NAYA: Bill lai photo banauna
+import html2canvas from 'html2canvas';
 
 export default function StoreFront() {
   const [cart, setCart] = useState(() => {
@@ -20,12 +20,25 @@ export default function StoreFront() {
   
   const [selectedProduct, setSelectedProduct] = useState(null);
   
-  // 🟢 NAYA STATE: Invoice Modal ra Generation ko lagi
   const [showInvoice, setShowInvoice] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const invoiceRef = useRef(null);
 
+  // 🌟 NAYA STATE: Sabai Alert ko satta Universal Modal
+  const [appModal, setAppModal] = useState({
+    isOpen: false,
+    type: 'success', // 'success' | 'error' | 'warning'
+    title: '',
+    message: '',
+    whatsappUrl: ''
+  });
+
   const WHATSAPP_NUMBER = "+9779860428834"; 
+
+  // Helper function to trigger our custom modal instead of alert()
+  const showModal = (type, title, message, whatsappUrl = '') => {
+    setAppModal({ isOpen: true, type, title, message, whatsappUrl });
+  };
 
   useEffect(() => {
     axios.get('https://kiranastore-luig.onrender.com/api/categories')
@@ -77,55 +90,55 @@ export default function StoreFront() {
     return matchesCategory && matchesSearch;
   });
 
-  // 🟢 NAYA LOGIC: Bill lai Image ma convert garera Share/Download garne
   const sendBillAsPhoto = async () => {
     if (!invoiceRef.current) return;
     setIsGenerating(true);
     
     try {
-      // HTML lai High Quality Image ma convert garne
       const canvas = await html2canvas(invoiceRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       
       canvas.toBlob(async (blob) => {
-        const file = new File([blob], `Sandip_Kirana_Bill_${Date.now()}.png`, { type: 'image/png' });
+        // 1. Download Logic
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Sandip_Kirana_Bill_${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
-        // Mobile device ho bhane direct Share menu kholne (WhatsApp select garna milcha)
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: 'Sandip Kirana Store - Order Bill',
-            text: `Namaste! Mero order ko bill pathayeko chu. Kripaya confirm garidinu hola.`,
-          });
-        } else {
-          // Desktop ko lagi Image auto-download garne ra WhatsApp Web kholne
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `Sandip_Kirana_Bill_${Date.now()}.png`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
+        // 2. WhatsApp URL Setup
+        const messageStr = "Namaste! Mero order ko bill maile download garera yaha attach gardai chu. Kripaya heridinu hola.";
+        const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(messageStr)}`;
 
-          alert("Bill download vayo! Aba WhatsApp ma yo photo lai attach garera pathaunuhos.");
-          window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=Namaste! Mero order ko bill maile download garera yaha attach gardai chu. Kripaya heridinu hola.`, '_blank');
-        }
+        // 3. Success Modal Kholne (Alert Hataiyo)
+        showModal(
+          'success', 
+          'Bill Downloaded! 📥', 
+          "हजुरको डिभाइसमा बिल सेभ भयो। अब तलको बटन थिचेर WhatsApp खोल्नुहोस् र 'Gallery' बाट भर्खरै Download भएको बिलको फोटो पठाउनुहोला।", 
+          whatsappUrl
+        );
+        
       }, 'image/png');
     } catch (error) {
       console.error("Bill generate huda error aayo:", error);
-      alert("Bill generate garna sakiyena.");
+      // Error Modal Kholne (Alert Hataiyo)
+      showModal('error', 'Opps!', 'Bill generate garna sakiyena. Kripaya pheri try garnuhos.');
     } finally {
       setIsGenerating(false);
     }
   };
 
   const handlePreviewBill = () => {
-    if (cart.length === 0) return alert("Cart khali cha!");
-    setIsCartOpen(false); // Cart close garne
-    setShowInvoice(true); // Bill Modal kholne
+    if (cart.length === 0) {
+      // Warning Modal Kholne (Alert Hataiyo)
+      return showModal('warning', 'Cart Khali Cha!', 'कृपया बिल बनाउन अगाडि Cart मा सामान थप्नुहोस्।');
+    }
+    setIsCartOpen(false); 
+    setShowInvoice(true); 
   };
 
-  // Ajako miti nikalne
   const currentDate = new Date().toLocaleDateString('en-US', {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
@@ -133,12 +146,63 @@ export default function StoreFront() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex flex-col overflow-x-hidden">
       
-      {/* 🌟 NAYA UPDATE: INVOICE / BILL PREVIEW MODAL 🌟 */}
+      {/* 🌟 🟢 NAYA: UNIVERSAL APP MODAL (Replaces all alerts) 🌟 */}
+      {appModal.isOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 relative animate-in zoom-in-95 duration-300 text-center border border-gray-100">
+            
+            {/* Icon based on Type */}
+            <div className={`p-5 rounded-full mb-6 shadow-inner ${appModal.type === 'success' ? 'bg-green-100' : appModal.type === 'error' ? 'bg-red-100' : 'bg-yellow-100'}`}>
+              {appModal.type === 'success' && <Download size={40} className="text-green-600 animate-bounce" />}
+              {appModal.type === 'error' && <AlertCircle size={40} className="text-red-600" />}
+              {appModal.type === 'warning' && <Info size={40} className="text-yellow-600" />}
+            </div>
+            
+            <h3 className="text-2xl font-black text-gray-800 mb-3 tracking-tight">{appModal.title}</h3>
+            
+            <p className="text-gray-600 mb-8 font-medium leading-relaxed">
+              {appModal.message}
+            </p>
+            
+            {/* Buttons dynamically rendered based on whatsappUrl */}
+            {appModal.whatsappUrl ? (
+              <button 
+                onClick={() => {
+                  window.open(appModal.whatsappUrl, '_blank');
+                  setAppModal({ ...appModal, isOpen: false });
+                  setShowInvoice(false); 
+                }}
+                className="w-full bg-[#25D366] text-white py-4 rounded-xl font-black text-lg hover:bg-[#20bd5a] transition-all shadow-lg shadow-green-500/30 flex justify-center items-center gap-2 hover:-translate-y-1 active:scale-95"
+              >
+                <Share2 size={24} /> Open WhatsApp Now
+              </button>
+            ) : (
+              <button 
+                onClick={() => setAppModal({ ...appModal, isOpen: false })}
+                className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30"
+              >
+                Okay, Got it!
+              </button>
+            )}
+            
+            {/* Cancel Button only for WhatsApp Action */}
+            {appModal.whatsappUrl && (
+              <button 
+                onClick={() => setAppModal({ ...appModal, isOpen: false })}
+                className="mt-5 text-gray-400 hover:text-red-500 font-bold transition"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Invoice / Bill Preview Modal */}
       {showInvoice && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-gray-100 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             
-            {/* Modal Header */}
             <div className="bg-white px-6 py-4 border-b flex justify-between items-center z-10 sticky top-0">
               <h3 className="font-black text-xl text-gray-800">Preview Bill</h3>
               <button onClick={() => setShowInvoice(false)} className="bg-gray-100 p-2 rounded-full text-gray-600 hover:bg-red-100 hover:text-red-500 transition">
@@ -146,13 +210,11 @@ export default function StoreFront() {
               </button>
             </div>
 
-            {/* Scrollable Bill Content */}
             <div className="p-6 overflow-y-auto flex-1 flex justify-center bg-gray-200">
-              {/* 🧾 ACTUAL INVOICE DESIGN TO BE CAPTURED 🧾 */}
               <div 
                 ref={invoiceRef} 
                 className="bg-white p-8 shadow-sm w-full max-w-md mx-auto"
-                style={{ fontFamily: "'Courier New', Courier, monospace" }} // Gives that authentic bill look
+                style={{ fontFamily: "'Courier New', Courier, monospace" }} 
               >
                 <div className="text-center mb-6 border-b-2 border-dashed border-gray-300 pb-6">
                   <div className="flex justify-center mb-2">
@@ -204,7 +266,6 @@ export default function StoreFront() {
               </div>
             </div>
 
-            {/* Modal Footer (Action Buttons) */}
             <div className="bg-white p-4 border-t sticky bottom-0 z-10 flex gap-3">
               <button 
                 onClick={() => setShowInvoice(false)}
@@ -228,7 +289,7 @@ export default function StoreFront() {
         </div>
       )}
 
-      {/* Product Details Modal (Purano jastai) */}
+      {/* Product Details Modal */}
       {selectedProduct && !showInvoice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col md:flex-row relative animate-in zoom-in-95 duration-300">
@@ -326,7 +387,6 @@ export default function StoreFront() {
       <main className="max-w-7xl mx-auto p-4 py-6 flex-1 w-full flex flex-col lg:flex-row gap-8 relative">
         <div className="flex-1 w-full">
           
-          {/* Hero Banner */}
           <div className="bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800 rounded-3xl p-8 mb-8 shadow-2xl flex flex-col md:flex-row items-center justify-between overflow-hidden relative">
             <div className="md:w-2/3 relative z-10">
               <span className="bg-yellow-400 text-blue-900 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 inline-block">Free Local Delivery</span>
@@ -356,7 +416,6 @@ export default function StoreFront() {
             <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
           </div>
 
-          {/* Category Filter */}
           <div className="mb-6 flex overflow-x-auto pb-4 gap-3 hide-scrollbar items-center">
             <span className="font-bold text-gray-500 mr-2 uppercase tracking-wide text-sm hidden sm:block">Filter:</span>
             {categories.map(category => (
@@ -374,7 +433,6 @@ export default function StoreFront() {
             ))}
           </div>
 
-          {/* Product Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {filteredProducts.length > 0 ? (
               filteredProducts.map(product => (
@@ -415,7 +473,6 @@ export default function StoreFront() {
           </div>
         </div>
 
-        {/* Right Side: Shopping Cart Sidebar */}
         {isCartOpen && (
           <div className="lg:w-[400px] w-full bg-white p-6 rounded-t-3xl lg:rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] lg:shadow-2xl border border-gray-100 h-fit lg:sticky lg:top-24 z-30 fixed bottom-0 left-0 max-h-[85vh] overflow-y-auto lg:max-h-[calc(100vh-120px)] flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-right duration-300">
             <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 pb-4 border-b">
@@ -461,7 +518,6 @@ export default function StoreFront() {
                   <span className="text-gray-500 font-bold uppercase tracking-wider text-sm">Total Amount</span>
                   <span className="text-3xl font-black text-blue-700">Rs {totalAmount}</span>
                 </div>
-                {/* 🟢 NAYA UPDATE: Direct Checkout ko satta Preview Bill kholne */}
                 <button 
                   onClick={handlePreviewBill}
                   className="w-full bg-green-500 text-white py-4 rounded-xl font-black text-lg hover:bg-green-600 transition-all shadow-lg shadow-green-500/30 flex justify-center items-center gap-3 hover:-translate-y-1 active:scale-95"
@@ -474,7 +530,6 @@ export default function StoreFront() {
         )}
       </main>
 
-      {/* Footer */}
       <footer id="contact" className="bg-gray-900 text-gray-300 py-12 mt-12">
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
