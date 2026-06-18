@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Store, Search, Menu, Phone, MapPin, Clock, X, Info, Share2, Download, Loader2, AlertCircle } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, Store, Search, Menu, Phone, MapPin, Clock, X, Info, Share2, Download, Loader2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 
 export default function StoreFront() {
-  const [cart, setCart] = useState(() => {
-    const savedCart = localStorage.getItem('sandipKiranaCart');
-    return savedCart ? JSON.parse(savedCart) : [];
-  });
+  // 🟢 NAYA UPDATE: LocalStorage hatayera sidhai empty array rakhhiyo. 
+  // Aba refresh garda cart automatically khali huncha.
+  const [cart, setCart] = useState([]);
   
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,22 +19,20 @@ export default function StoreFront() {
   
   const [selectedProduct, setSelectedProduct] = useState(null);
   
+  // 🟢 NAYA UPDATE: Tier ra Quantity ko lagi state
+  const [selectedTier, setSelectedTier] = useState(null);
+  const [orderQty, setOrderQty] = useState(1);
+  
   const [showInvoice, setShowInvoice] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const invoiceRef = useRef(null);
 
-  // 🌟 NAYA STATE: Sabai Alert ko satta Universal Modal
   const [appModal, setAppModal] = useState({
-    isOpen: false,
-    type: 'success', // 'success' | 'error' | 'warning'
-    title: '',
-    message: '',
-    whatsappUrl: ''
+    isOpen: false, type: 'success', title: '', message: '', whatsappUrl: ''
   });
 
   const WHATSAPP_NUMBER = "+9779860428834"; 
 
-  // Helper function to trigger our custom modal instead of alert()
   const showModal = (type, title, message, whatsappUrl = '') => {
     setAppModal({ isOpen: true, type, title, message, whatsappUrl });
   };
@@ -50,34 +47,63 @@ export default function StoreFront() {
       .catch(err => console.error("Products fetch error:", err));
   }, []);
 
+  // Jab kunai product click huncha, tesko first pricing tier select garne
   useEffect(() => {
-    localStorage.setItem('sandipKiranaCart', JSON.stringify(cart));
-  }, [cart]);
-
-  const addToCart = (product) => {
-    const existing = cart.find(item => item._id === product._id);
-    if (existing) {
-      setCart(cart.map(item => item._id === product._id ? { ...item, qty: item.qty + 1 } : item));
-    } else {
-      setCart([...cart, { ...product, qty: 1 }]);
-      setIsCartOpen(true);
-    }
-  };
-
-  const updateQty = (id, delta) => {
-    setCart(cart.map(item => {
-      if (item._id === id) {
-        const newQty = Number(item.qty) + delta;
-        return { ...item, qty: newQty > 0 ? newQty : 1 }; 
+    if (selectedProduct) {
+      if (selectedProduct.pricing && selectedProduct.pricing.length > 0) {
+        setSelectedTier(selectedProduct.pricing[0]);
+      } else {
+        // Purano data ko lagi fallback
+        setSelectedTier({ unit: selectedProduct.quantity || 'Unit', price: selectedProduct.price });
       }
-      return item;
-    }));
+      setOrderQty(1); // Default quantity 1
+    }
+  }, [selectedProduct]);
+
+  // 🟢 NAYA UPDATE: Add to Cart Logic for Pricing Tiers
+  const addToCart = () => {
+    if (!selectedTier || Number(orderQty) <= 0) {
+      return showModal('warning', 'Invalid Quantity', 'Kripaya thik matra ma quantity halnuhos!');
+    }
+
+    // Unique ID for cart item (Product ID + Selected Unit)
+    const cartItemId = `${selectedProduct._id}-${selectedTier.unit}`;
+    const existing = cart.find(item => item.cartItemId === cartItemId);
+
+    if (existing) {
+      setCart(cart.map(item => 
+        item.cartItemId === cartItemId 
+        ? { ...item, qty: Number(item.qty) + Number(orderQty) } 
+        : item
+      ));
+    } else {
+      setCart([...cart, { 
+        cartItemId,
+        productId: selectedProduct._id,
+        name: selectedProduct.name,
+        image: selectedProduct.image,
+        selectedUnit: selectedTier.unit,
+        basePrice: selectedTier.price,
+        qty: Number(orderQty) 
+      }]);
+    }
+    
+    setIsCartOpen(true);
+    setSelectedProduct(null); // Modal close garne
+  };
+
+  // Cart bhitra quantity edit garne
+  const handleCartQtyChange = (cartItemId, newQty) => {
+    setCart(cart.map(item => 
+      item.cartItemId === cartItemId ? { ...item, qty: newQty } : item
+    ));
   };
   
-  const removeItem = (id) => setCart(cart.filter(item => item._id !== id));
+  const removeItem = (id) => setCart(cart.filter(item => item.cartItemId !== id));
   
-  const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const totalItems = cart.reduce((sum, item) => sum + Number(item.qty), 0);
+  // Total calculation
+  const totalAmount = cart.reduce((sum, item) => sum + (item.basePrice * (Number(item.qty) || 0)), 0).toFixed(2);
+  const totalItems = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
@@ -98,7 +124,6 @@ export default function StoreFront() {
       const canvas = await html2canvas(invoiceRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       
       canvas.toBlob(async (blob) => {
-        // 1. Download Logic
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -108,11 +133,9 @@ export default function StoreFront() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-        // 2. WhatsApp URL Setup
         const messageStr = "Namaste! Mero order ko bill maile download garera yaha attach gardai chu. Kripaya heridinu hola.";
         const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(messageStr)}`;
 
-        // 3. Success Modal Kholne (Alert Hataiyo)
         showModal(
           'success', 
           'Bill Downloaded! 📥', 
@@ -123,7 +146,6 @@ export default function StoreFront() {
       }, 'image/png');
     } catch (error) {
       console.error("Bill generate huda error aayo:", error);
-      // Error Modal Kholne (Alert Hataiyo)
       showModal('error', 'Opps!', 'Bill generate garna sakiyena. Kripaya pheri try garnuhos.');
     } finally {
       setIsGenerating(false);
@@ -132,7 +154,6 @@ export default function StoreFront() {
 
   const handlePreviewBill = () => {
     if (cart.length === 0) {
-      // Warning Modal Kholne (Alert Hataiyo)
       return showModal('warning', 'Cart Khali Cha!', 'कृपया बिल बनाउन अगाडि Cart मा सामान थप्नुहोस्।');
     }
     setIsCartOpen(false); 
@@ -146,12 +167,11 @@ export default function StoreFront() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex flex-col overflow-x-hidden">
       
-      {/* 🌟 🟢 NAYA: UNIVERSAL APP MODAL (Replaces all alerts) 🌟 */}
+      {/* 🌟 UNIVERSAL APP MODAL 🌟 */}
       {appModal.isOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 relative animate-in zoom-in-95 duration-300 text-center border border-gray-100">
             
-            {/* Icon based on Type */}
             <div className={`p-5 rounded-full mb-6 shadow-inner ${appModal.type === 'success' ? 'bg-green-100' : appModal.type === 'error' ? 'bg-red-100' : 'bg-yellow-100'}`}>
               {appModal.type === 'success' && <Download size={40} className="text-green-600 animate-bounce" />}
               {appModal.type === 'error' && <AlertCircle size={40} className="text-red-600" />}
@@ -164,7 +184,6 @@ export default function StoreFront() {
               {appModal.message}
             </p>
             
-            {/* Buttons dynamically rendered based on whatsappUrl */}
             {appModal.whatsappUrl ? (
               <button 
                 onClick={() => {
@@ -185,7 +204,6 @@ export default function StoreFront() {
               </button>
             )}
             
-            {/* Cancel Button only for WhatsApp Action */}
             {appModal.whatsappUrl && (
               <button 
                 onClick={() => setAppModal({ ...appModal, isOpen: false })}
@@ -211,11 +229,7 @@ export default function StoreFront() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 flex justify-center bg-gray-200">
-              <div 
-                ref={invoiceRef} 
-                className="bg-white p-8 shadow-sm w-full max-w-md mx-auto"
-                style={{ fontFamily: "'Courier New', Courier, monospace" }} 
-              >
+              <div ref={invoiceRef} className="bg-white p-8 shadow-sm w-full max-w-md mx-auto" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
                 <div className="text-center mb-6 border-b-2 border-dashed border-gray-300 pb-6">
                   <div className="flex justify-center mb-2">
                     <Store size={40} className="text-blue-800" />
@@ -243,10 +257,10 @@ export default function StoreFront() {
                       <tr key={idx} className="border-b border-gray-200 text-sm font-bold text-gray-700">
                         <td className="py-3">
                           {item.name} <br/>
-                          <span className="text-xs text-gray-500 font-normal">@ {item.price} / {item.quantity}</span>
+                          <span className="text-xs text-gray-500 font-normal">@ {item.basePrice} / {item.selectedUnit}</span>
                         </td>
-                        <td className="py-3 text-center">{item.qty}</td>
-                        <td className="py-3 text-right">Rs {item.price * item.qty}</td>
+                        <td className="py-3 text-center">{item.qty} {item.selectedUnit}</td>
+                        <td className="py-3 text-right">Rs {(item.basePrice * (Number(item.qty) || 0)).toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -267,29 +281,21 @@ export default function StoreFront() {
             </div>
 
             <div className="bg-white p-4 border-t sticky bottom-0 z-10 flex gap-3">
-              <button 
-                onClick={() => setShowInvoice(false)}
-                className="flex-1 bg-gray-100 text-gray-800 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
-              >
+              <button onClick={() => setShowInvoice(false)} className="flex-1 bg-gray-100 text-gray-800 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
                 Back to Edit
               </button>
               <button 
-                onClick={sendBillAsPhoto}
-                disabled={isGenerating}
-                className="flex-[2] bg-green-500 text-white py-3 rounded-xl font-black hover:bg-green-600 transition shadow-lg shadow-green-500/30 flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                onClick={sendBillAsPhoto} disabled={isGenerating}
+                className="flex-[2] bg-green-500 text-white py-3 rounded-xl font-black hover:bg-green-600 transition shadow-lg flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isGenerating ? (
-                  <><Loader2 size={20} className="animate-spin" /> Generating Bill...</>
-                ) : (
-                  <><Share2 size={20} /> Send Bill Photo to WhatsApp</>
-                )}
+                {isGenerating ? <><Loader2 size={20} className="animate-spin" /> Generating...</> : <><Share2 size={20} /> Send Bill to WhatsApp</>}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Product Details Modal */}
+      {/* 🟢 NAYA UPDATE: Product Details & Dynamic Pricing Modal */}
       {selectedProduct && !showInvoice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col md:flex-row relative animate-in zoom-in-95 duration-300">
@@ -301,31 +307,67 @@ export default function StoreFront() {
             </button>
             
             <div className="md:w-1/2 bg-gray-100">
-              <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-64 md:h-full object-cover" />
+              <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-48 md:h-full object-cover" />
             </div>
             
-            <div className="md:w-1/2 p-8 flex flex-col justify-center">
+            <div className="md:w-1/2 p-8 flex flex-col justify-center h-full max-h-[80vh] overflow-y-auto">
               <span className="text-xs text-blue-600 font-black tracking-widest uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-full">{selectedProduct.category}</span>
-              <h2 className="text-3xl font-black text-gray-800 mb-2 leading-tight">{selectedProduct.name}</h2>
-              <div className="text-3xl font-black text-blue-600 mb-4">Rs {selectedProduct.price}</div>
+              <h2 className="text-3xl font-black text-gray-800 mb-4 leading-tight">{selectedProduct.name}</h2>
               
-              <div className="bg-yellow-50 text-yellow-800 p-3 rounded-xl font-medium mb-6 flex items-center gap-2 border border-yellow-200">
-                <Info size={20} className="text-yellow-600" />
-                <span>Base Unit: <strong>{selectedProduct.quantity || "N/A"}</strong></span>
+              <div className="mb-4">
+                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Select Options:</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedProduct.pricing && selectedProduct.pricing.length > 0 ? (
+                    selectedProduct.pricing.map((tier, idx) => (
+                      <button 
+                        key={idx} 
+                        onClick={() => setSelectedTier(tier)}
+                        className={`px-4 py-2 border-2 rounded-xl font-bold transition-all ${
+                          selectedTier?.unit === tier.unit 
+                          ? 'border-blue-600 bg-blue-50 text-blue-800' 
+                          : 'border-gray-200 text-gray-600 hover:border-blue-300'
+                        }`}
+                      >
+                        {tier.unit} <br/> <span className="text-sm font-black text-gray-800">Rs {tier.price}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <button className="px-4 py-2 border-2 border-blue-600 bg-blue-50 text-blue-800 rounded-xl font-bold">
+                      {selectedProduct.quantity || 'Unit'} <br/> <span className="text-sm font-black">Rs {selectedProduct.price}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                <label className="font-bold text-gray-700 block mb-2">
+                  Enter Quantity (e.g. <span className="text-blue-600">0.5</span> for half kg, <span className="text-blue-600">2.5</span>)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="number" 
+                    step="any" 
+                    min="0" 
+                    value={orderQty} 
+                    onChange={(e) => setOrderQty(e.target.value)} 
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 w-28 font-black text-xl text-center outline-none transition" 
+                  />
+                  <span className="font-bold text-gray-600 text-lg">{selectedTier?.unit}</span>
+                </div>
+              </div>
+
+              <div className="text-3xl font-black text-blue-700 mb-6 border-b pb-4">
+                Total: Rs { ((selectedTier?.price || 0) * (Number(orderQty) || 0)).toFixed(2) }
               </div>
               
-              <div className="mb-8 flex-1">
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Product Description</h4>
-                <p className="text-gray-700 leading-relaxed">
+              <div className="mb-6 flex-1">
+                <p className="text-gray-700 text-sm leading-relaxed">
                   {selectedProduct.description || "Yas product ko barema dherai jankari uplabda chaina."}
                 </p>
               </div>
               
               <button 
-                onClick={() => {
-                  addToCart(selectedProduct);
-                  setSelectedProduct(null); 
-                }}
+                onClick={addToCart}
                 className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
               >
                 <ShoppingCart size={24} /> Add to Cart
@@ -361,7 +403,7 @@ export default function StoreFront() {
                 <span className="font-bold hidden sm:block text-lg">Rs {totalAmount}</span>
                 {totalItems > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-blue-800 shadow-sm animate-pulse">
-                    {totalItems}
+                    {totalItems > 99 ? '99+' : parseFloat(totalItems.toFixed(2))}
                   </span>
                 )}
               </button>
@@ -411,7 +453,7 @@ export default function StoreFront() {
             </div>
             
             <div className="md:w-1/3 mt-8 md:mt-0 relative z-10 hidden md:block">
-              <img src="https://scontent.fktm17-1.fna.fbcdn.net/v/t39.30808-6/480559092_594232123435745_383012169672590612_n.jpg?stp=dst-jpg_tt6&cstp=mx1158x2048&ctp=s1158x2048&_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=R_d_qVcN2K8Q7kNvwH0zNRP&_nc_oc=Adqj1Cmz1eQ_tArCZd-eU5EMiYHd7wKEAQDvcvlmDVm2vWPiO_SzxN3NGfK0JW8q5-1Vu1ofZYyUiDT60rEj0iy8&_nc_zt=23&_nc_ht=scontent.fktm17-1.fna&_nc_gid=kAX7SIV8Dz7HGCACXbjiVA&_nc_ss=7b2a8&oh=00_Af9h2bzTnc-M-eWwJfnHMtz9hWLcTCpLnVryGWOKQOmozQ&oe=6A3899EB" alt="Groceries Basket" className="rounded-2xl shadow-2xl transform rotate-3 hover:rotate-0 transition duration-500 hover:scale-105" />
+              <img src="https://scontent.fktm17-1.fna.fbcdn.net/v/t39.30808-6/480559092_594232123435745_383012169672590612_n.jpg?stp=dst-jpg_tt6&cstp=mx1158x2048&ctp=s1158x2048&_nc_cat=108&ccb=1-7&_nc_sid=a5f93a&_nc_ohc=R_d_qVcN2K8Q7kNvwH0zNRP&_nc_oc=Adqj1Cmz1eQ_tArCZd-eU5EMiYHd7wKEAQDvcvlmDVm2vWPiO_SzxN3NGfK0JW8q5-1Vu1ofZYyUiDT60rEj0iy8&_nc_zt=23&_nc_ht=scontent.fktm17-1.fna&_nc_gid=kAX7SIV8Dz7HGCACXbjiVA&_nc_ss=7b2a8&oh=00_Af9h2bzTnc-M-eWwJfnHMtz9hWLcTCpLnVryGWOKQOmozQ&oe=6A3899EB" alt="Groceries" className="rounded-2xl shadow-2xl transform rotate-3 hover:rotate-0 transition duration-500 hover:scale-105" />
             </div>
             <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-pulse"></div>
           </div>
@@ -435,35 +477,43 @@ export default function StoreFront() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {filteredProducts.length > 0 ? (
-              filteredProducts.map(product => (
-                <div key={product._id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col group cursor-pointer" onClick={() => setSelectedProduct(product)}>
-                  <div className="relative overflow-hidden bg-gray-100">
-                    <img src={product.image} alt={product.name} className="w-full h-40 md:h-48 object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                      <span className="bg-white text-gray-900 font-bold py-2 px-4 rounded-full text-sm">View Details</span>
+              filteredProducts.map(product => {
+                // 🟢 NAYA UPDATE: Get first tier for displaying on the home page card
+                const defaultTier = product.pricing && product.pricing.length > 0 
+                  ? product.pricing[0] 
+                  : { price: product.price, unit: product.quantity || 'Unit' };
+
+                return (
+                  <div key={product._id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 flex flex-col group cursor-pointer" onClick={() => setSelectedProduct(product)}>
+                    <div className="relative overflow-hidden bg-gray-100">
+                      <img src={product.image} alt={product.name} className="w-full h-40 md:h-48 object-cover group-hover:scale-110 transition-transform duration-500" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <span className="bg-white text-gray-900 font-bold py-2 px-4 rounded-full text-sm">View Details</span>
+                      </div>
+                    </div>
+                    <div className="p-4 md:p-5 flex flex-col flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] text-blue-600 font-bold tracking-widest uppercase bg-blue-50 px-2 py-1 rounded">{product.category}</span>
+                        <span className="text-[10px] text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded truncate max-w-[80px]">{defaultTier.unit}</span>
+                      </div>
+                      <h3 className="text-sm md:text-base font-bold text-gray-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
+                      <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                        <div className="text-lg md:text-xl font-black text-gray-900">Rs {defaultTier.price}</div>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation(); 
+                            // Aba + button click garda pani details modal kholcha so user can type exact decimal qty/unit
+                            setSelectedProduct(product);
+                          }}
+                          className="bg-blue-600 text-white p-2 md:p-2.5 rounded-xl hover:bg-blue-700 hover:shadow-lg transition-all active:scale-95"
+                        >
+                          <Plus size={20} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="p-4 md:p-5 flex flex-col flex-1">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] text-blue-600 font-bold tracking-widest uppercase bg-blue-50 px-2 py-1 rounded">{product.category}</span>
-                      <span className="text-[10px] text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded truncate max-w-[80px]">{product.quantity || 'Unit'}</span>
-                    </div>
-                    <h3 className="text-sm md:text-base font-bold text-gray-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
-                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                      <div className="text-lg md:text-xl font-black text-gray-900">Rs {product.price}</div>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation(); 
-                          addToCart(product);
-                        }}
-                        className="bg-blue-600 text-white p-2 md:p-2.5 rounded-xl hover:bg-blue-700 hover:shadow-lg transition-all active:scale-95"
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
                 <Search size={64} className="mx-auto mb-4 text-gray-300 animate-bounce" />
@@ -473,6 +523,7 @@ export default function StoreFront() {
           </div>
         </div>
 
+        {/* 🟢 NAYA UPDATE: Cart Menu with Decimal quantity input support */}
         {isCartOpen && (
           <div className="lg:w-[400px] w-full bg-white p-6 rounded-t-3xl lg:rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] lg:shadow-2xl border border-gray-100 h-fit lg:sticky lg:top-24 z-30 fixed bottom-0 left-0 max-h-[85vh] overflow-y-auto lg:max-h-[calc(100vh-120px)] flex flex-col animate-in slide-in-from-bottom lg:slide-in-from-right duration-300">
             <div className="flex justify-between items-center mb-6 sticky top-0 bg-white z-10 pb-4 border-b">
@@ -492,21 +543,24 @@ export default function StoreFront() {
             ) : (
               <div className="space-y-4 flex-1">
                 {cart.map(item => (
-                  <div key={item._id} className="flex justify-between items-center bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
+                  <div key={item.cartItemId} className="flex justify-between items-center bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition">
                     <img src={item.image} alt={item.name} className="w-12 h-12 md:w-16 md:h-16 rounded-lg object-cover mr-3 border" />
                     <div className="flex-1 pr-2">
                       <h4 className="font-bold text-sm text-gray-800 line-clamp-1">{item.name}</h4>
-                      <p className="text-xs text-gray-500 font-medium mt-0.5">Base: {item.quantity}</p>
-                      <p className="text-blue-700 text-sm font-black mt-1">Rs {item.price * item.qty}</p>
+                      <p className="text-xs text-gray-500 font-medium mt-0.5">Rs {item.basePrice} / {item.selectedUnit}</p>
+                      <p className="text-blue-700 text-sm font-black mt-1">Rs {(item.basePrice * (Number(item.qty) || 0)).toFixed(2)}</p>
                     </div>
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="flex items-center gap-1 bg-gray-50 border rounded-lg p-1">
-                        <button onClick={() => updateQty(item._id, -1)} className="p-1 text-gray-500 hover:text-blue-600 bg-white rounded shadow-sm transition active:scale-90"><Minus size={14}/></button>
-                        <span className="font-bold w-6 text-center text-sm">{item.qty}</span>
-                        <button onClick={() => updateQty(item._id, 1)} className="p-1 text-gray-500 hover:text-blue-600 bg-white rounded shadow-sm transition active:scale-90"><Plus size={14}/></button>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      {/* Quantity Input directly editable inside Cart */}
+                      <input 
+                        type="number" 
+                        step="any"
+                        value={item.qty} 
+                        onChange={(e) => handleCartQtyChange(item.cartItemId, e.target.value)}
+                        className="w-16 p-1.5 text-center font-bold border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500" 
+                      />
                     </div>
-                    <button onClick={() => removeItem(item._id)} className="p-2 text-red-400 hover:text-red-600 ml-2 hover:bg-red-50 rounded-lg transition active:scale-90"><Trash2 size={18}/></button>
+                    <button onClick={() => removeItem(item.cartItemId)} className="p-2 text-red-400 hover:text-red-600 ml-2 hover:bg-red-50 rounded-lg transition active:scale-90"><Trash2 size={18}/></button>
                   </div>
                 ))}
               </div>
