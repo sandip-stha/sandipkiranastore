@@ -24,8 +24,20 @@ export default function AuthPage() {
           setAuthLoading(false);
           return setMessage({ type: 'error', text: 'Password र Confirm Password मिलेन!' });
         }
+        
         const res = await axios.post(`${API_BASE_URL}/register`, authForm);
-        setMessage({ type: 'success', text: res.data.message });
+        
+        // 🔥 Backend बाट आएको OTP लाई सिधै स्क्रिनमा देखाउने
+        if (res.data.demoOtp) {
+           setMessage({ 
+             type: 'success', 
+             text: `${res.data.message} हजुरको Demo OTP: ${res.data.demoOtp} हो। तलको बक्समा आफैं भरिएको छ, कृपया Verify थिच्नुहोस्।` 
+           });
+           setAuthForm({ ...authForm, otp: res.data.demoOtp }); // OTP आफैं भर्दिने
+        } else {
+           setMessage({ type: 'success', text: res.data.message });
+        }
+        
         setAuthMode('otp');
       } 
       else if (authMode === 'otp') {
@@ -64,13 +76,13 @@ export default function AuthPage() {
             {authMode === 'login' ? 'Login to Order' : authMode === 'register' ? 'Create Account' : 'Verify Email OTP'}
           </h2>
           <p className="text-gray-500 text-sm mt-2 font-medium">
-            {authMode === 'login' ? 'आफ्नो फोन नम्बर र पासवर्ड हाल्नुहोस्।' : authMode === 'register' ? 'नयाँ खाता खोल्न विवरण भर्नुहोस्।' : 'हजुरको Email मा आएको ६ अंकको OTP हाल्नुहोस्।'}
+            {authMode === 'login' ? 'आफ्नो फोन नम्बर र पासवर्ड हाल्नुहोस्।' : authMode === 'register' ? 'नयाँ खाता खोल्न विवरण भर्नुहोस्।' : 'तल दिएको डेमो OTP लाई Verify गर्नुहोस्।'}
           </p>
         </div>
 
         {/* Message Alert Box */}
         {message.text && (
-          <div className={`p-4 mb-6 rounded-xl text-sm font-bold text-center ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+          <div className={`p-4 mb-6 rounded-xl text-sm font-bold text-center leading-relaxed ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700 border border-green-200'}`}>
             {message.text}
           </div>
         )}
