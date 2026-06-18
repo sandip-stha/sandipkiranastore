@@ -31,7 +31,7 @@ export default function AuthPage() {
         if (res.data.demoOtp) {
            setMessage({ 
              type: 'success', 
-             text: `${res.data.message} हजुरको Demo OTP: ${res.data.demoOtp} हो। तलको बक्समा आफैं भरिएको छ, कृपया Verify थिच्नुहोस्।` 
+             text: `${res.data.message} हजुरको OTP: ${res.data.demoOtp} हो। तलको बक्समा आफैं भरिएको छ, कृपया Verify थिच्नुहोस्।` 
            });
            setAuthForm({ ...authForm, otp: res.data.demoOtp }); // OTP आफैं भर्दिने
         } else {
