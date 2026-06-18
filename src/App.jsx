@@ -5,6 +5,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // Pages haru import garne
 import StoreFront from './pages/StoreFront';
 import AdminDashboard from './pages/AdminDashboard';
+import AuthPage from './pages/AuthPage';
 
 export default function App() {
   return (
@@ -15,6 +16,8 @@ export default function App() {
         
         {/* Admin panel ko route */}
         <Route path="/admin" element={<AdminDashboard />} />
+
+        <Route path="/login" element={<AuthPage />} />
       </Routes>
     </Router>
   );
