@@ -1,32 +1,43 @@
 // StoreFront.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingCart, Plus, Trash2, Store, Search, Menu, Phone, MapPin, Clock, X, Info, Share2, Download, Loader2, AlertCircle } from 'lucide-react';
+import { 
+  ShoppingCart, Plus, Trash2, Store, Search, Menu, Phone, MapPin, 
+  Clock, X, Info, Share2, Download, Loader2, AlertCircle, 
+  User, LogOut, Mail, Lock, Smartphone 
+} from 'lucide-react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 
 export default function StoreFront() {
+  // --- Products & Cart States ---
   const [cart, setCart] = useState([]);
-  
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
   const [categories, setCategories] = useState(['All']);
   const [products, setProducts] = useState([]);
-  
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const [orderQty, setOrderQty] = useState(1);
   
+  // --- Invoice States ---
   const [showInvoice, setShowInvoice] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const invoiceRef = useRef(null);
 
+  // --- App Modal State ---
   const [appModal, setAppModal] = useState({
     isOpen: false, type: 'success', title: '', message: '', whatsappUrl: ''
   });
+
+  // --- Authentication States 🟢 ---
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'otp'
+  const [authForm, setAuthForm] = useState({ name: '', phone: '', email: '', password: '', confirmPassword: '', otp: '' });
+  const [authLoading, setAuthLoading] = useState(false);
 
   const WHATSAPP_NUMBER = "+9779860428834"; 
 
@@ -35,6 +46,13 @@ export default function StoreFront() {
   };
 
   useEffect(() => {
+    // Check if user is already logged in
+    const storedUser = localStorage.getItem('sk_user');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+    }
+
+    // Fetch Categories & Products
     axios.get('https://kiranastore-luig.onrender.com/api/categories')
       .then(res => setCategories(['All', ...res.data.map(c => c.name)]))
       .catch(err => console.error("Categories fetch error:", err));
@@ -44,56 +62,116 @@ export default function StoreFront() {
       .catch(err => console.error("Products fetch error:", err));
   }, []);
 
+  // Set Default Quantity based on the selected tier's base measure
   useEffect(() => {
     if (selectedProduct) {
       if (selectedProduct.pricing && selectedProduct.pricing.length > 0) {
-        setSelectedTier(selectedProduct.pricing[0]);
+        const defaultTier = selectedProduct.pricing[0];
+        setSelectedTier(defaultTier);
+        setOrderQty(defaultTier.measureQty); 
       } else {
-        // Fallback
         setSelectedTier({ measureQty: 1, measureUnit: 'Unit', price: selectedProduct.price || 0 });
+        setOrderQty(1);
       }
-      setOrderQty(1);
     }
   }, [selectedProduct]);
 
-  // 🟢 SMART LOGIC CHECK: Is it Kg or Ltr?
-  const isLooseItem = ['Kg', 'Ltr', 'ml'].includes(selectedTier?.measureUnit);
+  // --- Authentication Handlers 🟢 ---
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    
+    // Change this URL to your deployed API URL later if needed
+    const API_BASE_URL = 'http://localhost:5000/api/auth'; 
+    
+    try {
+      if (authMode === 'register') {
+        if (authForm.password !== authForm.confirmPassword) {
+          setAuthLoading(false);
+          return showModal('error', 'Error', 'Password र Confirm Password मिलेन!');
+        }
+        const res = await axios.post(`${API_BASE_URL}/register`, authForm);
+        showModal('success', 'OTP Sent!', res.data.message);
+        setAuthMode('otp');
+      } 
+      else if (authMode === 'otp') {
+        const res = await axios.post(`${API_BASE_URL}/verify-otp`, { email: authForm.email, otp: authForm.otp });
+        localStorage.setItem('sk_token', res.data.token);
+        localStorage.setItem('sk_user', JSON.stringify(res.data.user));
+        setCurrentUser(res.data.user);
+        setIsAuthModalOpen(false);
+        showModal('success', 'Verified!', 'खाता सफलतापूर्वक खुल्यो। अब हजुरले अर्डर गर्न सक्नुहुन्छ।');
+      } 
+      else {
+        const res = await axios.post(`${API_BASE_URL}/login`, { phone: authForm.phone, password: authForm.password });
+        localStorage.setItem('sk_token', res.data.token);
+        localStorage.setItem('sk_user', JSON.stringify(res.data.user));
+        setCurrentUser(res.data.user);
+        setIsAuthModalOpen(false);
+        showModal('success', 'Welcome Back!', `स्वागत छ ${res.data.user.name} जी!`);
+      }
+    } catch (err) {
+      showModal('error', 'Opps!', err.response?.data?.message || 'केही प्राविधिक समस्या आयो।');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('sk_token');
+    localStorage.removeItem('sk_user');
+    setCurrentUser(null);
+    setCart([]);
+    setIsCartOpen(false);
+    showModal('success', 'Logged Out', 'तपाईं सफलतापूर्वक बाहिर निस्कनुभयो।');
+  };
+
+  // --- Cart & Product Handlers ---
+  const getUnitPrice = (tier) => {
+    if (!tier || !tier.measureQty) return 0;
+    return tier.price / tier.measureQty;
+  };
 
   const addToCart = () => {
-    if (!selectedTier || Number(orderQty) <= 0) {
-      return showModal('warning', 'Invalid Quantity', 'Kripaya thik matra ma quantity halnuhos!');
+    // 🟢 Must be logged in to add to cart
+    if (!currentUser) {
+      setSelectedProduct(null);
+      setAuthMode('login');
+      setIsAuthModalOpen(true);
+      return;
     }
 
-    const cartItemId = `${selectedProduct._id}-${selectedTier.measureQty}-${selectedTier.measureUnit}`;
+    if (!selectedTier || Number(orderQty) <= 0) {
+      return showModal('warning', 'Invalid Quantity', 'कृपया ठिक मात्रामा Quantity हाल्नुहोस्!');
+    }
+
+    const unitPrice = getUnitPrice(selectedTier);
+    const calculatedPrice = unitPrice * Number(orderQty);
+    const displayUnitStr = `${orderQty} ${selectedTier.measureUnit}`;
+    const cartItemId = `${selectedProduct._id}-${selectedTier.measureUnit}`;
     const existing = cart.find(item => item.cartItemId === cartItemId);
 
-    const calculatedPrice = selectedTier.price * Number(orderQty);
-    
-    // Formatting display unit logic
-    let displayUnitStr = isLooseItem 
-      ? `${(selectedTier.measureQty * Number(orderQty)).toFixed(2)} ${selectedTier.measureUnit}` 
-      : `${orderQty} x (${selectedTier.measureQty} ${selectedTier.measureUnit})`;
-
     if (existing) {
-      setCart(cart.map(item => 
-        item.cartItemId === cartItemId 
-        ? { 
+      setCart(cart.map(item => {
+        if (item.cartItemId === cartItemId) {
+          const newQty = Number(item.qty) + Number(orderQty);
+          return { 
             ...item, 
-            qty: Number(item.qty) + Number(orderQty), 
-            finalPrice: item.finalPrice + calculatedPrice,
-            displayUnit: displayUnitStr
-          } 
-        : item
-      ));
+            qty: newQty, 
+            finalPrice: item.unitPrice * newQty,
+            displayUnit: `${newQty} ${item.measureUnit}`
+          };
+        }
+        return item;
+      }));
     } else {
       setCart([...cart, { 
         cartItemId,
         productId: selectedProduct._id,
         name: selectedProduct.name,
         image: selectedProduct.image,
-        measureQty: selectedTier.measureQty,
         measureUnit: selectedTier.measureUnit,
-        basePrice: selectedTier.price,
+        unitPrice: unitPrice,
         qty: Number(orderQty),
         finalPrice: calculatedPrice,
         displayUnit: displayUnitStr
@@ -108,13 +186,12 @@ export default function StoreFront() {
     setCart(cart.map(item => {
       if (item.cartItemId === cartItemId) {
         const qtyNum = Number(newQty);
-        const isLoose = ['Kg', 'Ltr', 'ml'].includes(item.measureUnit);
-        const finalPrice = item.basePrice * qtyNum;
-        const displayUnitStr = isLoose 
-          ? `${(item.measureQty * qtyNum).toFixed(2)} ${item.measureUnit}` 
-          : `${qtyNum} x (${item.measureQty} ${item.measureUnit})`;
-        
-        return { ...item, qty: newQty, finalPrice, displayUnit: displayUnitStr };
+        return { 
+          ...item, 
+          qty: qtyNum, 
+          finalPrice: item.unitPrice * qtyNum, 
+          displayUnit: `${qtyNum} ${item.measureUnit}` 
+        };
       }
       return item;
     }));
@@ -123,7 +200,7 @@ export default function StoreFront() {
   const removeItem = (id) => setCart(cart.filter(item => item.cartItemId !== id));
   
   const totalAmount = cart.reduce((sum, item) => sum + item.finalPrice, 0).toFixed(2);
-  const totalItems = cart.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  const totalItems = cart.length;
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
@@ -136,6 +213,7 @@ export default function StoreFront() {
     return matchesCategory && matchesSearch;
   });
 
+  // --- Invoice Logic ---
   const sendBillAsPhoto = async () => {
     if (!invoiceRef.current) return;
     setIsGenerating(true);
@@ -153,7 +231,7 @@ export default function StoreFront() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-        const messageStr = "Namaste! Mero order ko bill maile download garera yaha attach gardai chu. Kripaya heridinu hola.";
+        const messageStr = `Namaste! Mero order ko bill maile download garera yaha attach gardai chu. Kripaya heridinu hola. (Name: ${currentUser?.name || 'Customer'})`;
         const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(messageStr)}`;
 
         showModal(
@@ -186,7 +264,7 @@ export default function StoreFront() {
       
       {/* 🌟 UNIVERSAL APP MODAL 🌟 */}
       {appModal.isOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 relative animate-in zoom-in-95 duration-300 text-center border border-gray-100">
             <div className={`p-5 rounded-full mb-6 shadow-inner ${appModal.type === 'success' ? 'bg-green-100' : appModal.type === 'error' ? 'bg-red-100' : 'bg-yellow-100'}`}>
               {appModal.type === 'success' && <Download size={40} className="text-green-600 animate-bounce" />}
@@ -209,6 +287,86 @@ export default function StoreFront() {
         </div>
       )}
 
+      {/* 🟢 NEW: AUTHENTICATION MODAL */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden relative animate-in zoom-in-95 duration-300 border border-gray-100">
+            <button onClick={() => setIsAuthModalOpen(false)} className="absolute top-4 right-4 bg-gray-100 p-2 rounded-full text-gray-600 hover:bg-red-100 hover:text-red-500 transition z-10"><X size={20} /></button>
+            
+            <div className="p-8">
+              <div className="text-center mb-8">
+                <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                  <User size={32} className="text-blue-700" />
+                </div>
+                <h2 className="text-2xl font-black text-gray-800">
+                  {authMode === 'login' ? 'Login to Order' : authMode === 'register' ? 'Create Account' : 'Verify Email OTP'}
+                </h2>
+                <p className="text-gray-500 text-sm mt-2 font-medium">
+                  {authMode === 'login' ? 'आफ्नो फोन नम्बर र पासवर्ड हाल्नुहोस्।' : authMode === 'register' ? 'नयाँ खाता खोल्न विवरण भर्नुहोस्।' : 'हजुरको Email मा आएको ६ अंकको OTP हाल्नुहोस्।'}
+                </p>
+              </div>
+
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {authMode === 'register' && (
+                  <div className="relative">
+                    <User className="absolute left-4 top-3.5 text-gray-400" size={20} />
+                    <input type="text" placeholder="Full Name" required value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-12 focus:ring-2 focus:ring-blue-500 outline-none transition font-medium" />
+                  </div>
+                )}
+                
+                {(authMode === 'register' || authMode === 'otp') && (
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-3.5 text-gray-400" size={20} />
+                    <input type="email" placeholder="Email Address" required disabled={authMode === 'otp'} value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-12 focus:ring-2 focus:ring-blue-500 outline-none transition disabled:opacity-60 font-medium" />
+                  </div>
+                )}
+
+                {(authMode === 'login' || authMode === 'register') && (
+                  <div className="relative">
+                    <Smartphone className="absolute left-4 top-3.5 text-gray-400" size={20} />
+                    <input type="tel" placeholder="Phone Number" required value={authForm.phone} onChange={(e) => setAuthForm({...authForm, phone: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-12 focus:ring-2 focus:ring-blue-500 outline-none transition font-medium" />
+                  </div>
+                )}
+
+                {(authMode === 'login' || authMode === 'register') && (
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-3.5 text-gray-400" size={20} />
+                    <input type="password" placeholder="Password" required value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-12 focus:ring-2 focus:ring-blue-500 outline-none transition font-medium" />
+                  </div>
+                )}
+
+                {authMode === 'register' && (
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-3.5 text-gray-400" size={20} />
+                    <input type="password" placeholder="Confirm Password" required value={authForm.confirmPassword} onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-12 focus:ring-2 focus:ring-blue-500 outline-none transition font-medium" />
+                  </div>
+                )}
+
+                {authMode === 'otp' && (
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-3.5 text-gray-400" size={20} />
+                    <input type="text" maxLength="6" placeholder="Enter 6-digit OTP" required value={authForm.otp} onChange={(e) => setAuthForm({...authForm, otp: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-12 focus:ring-2 focus:ring-blue-500 outline-none transition text-center font-black tracking-widest text-xl text-gray-800" />
+                  </div>
+                )}
+
+                <button type="submit" disabled={authLoading} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition flex justify-center items-center gap-2 mt-4 shadow-lg shadow-blue-500/30 active:scale-95">
+                  {authLoading ? <Loader2 className="animate-spin" size={24} /> : authMode === 'login' ? 'Login' : authMode === 'register' ? 'Register' : 'Verify OTP'}
+                </button>
+              </form>
+
+              {authMode !== 'otp' && (
+                <div className="mt-6 text-center text-sm font-medium text-gray-600">
+                  {authMode === 'login' ? "खाता छैन?" : "पहिले नै खाता छ?"}
+                  <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="text-blue-600 hover:text-blue-800 ml-1 font-black underline decoration-2 underline-offset-2">
+                    {authMode === 'login' ? 'नयाँ खाता खोल्नुहोस्' : 'यहाँ Login गर्नुहोस्'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Invoice / Bill Preview Modal */}
       {showInvoice && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
@@ -218,8 +376,16 @@ export default function StoreFront() {
               <button onClick={() => setShowInvoice(false)} className="bg-gray-100 p-2 rounded-full text-gray-600 hover:bg-red-100 hover:text-red-500 transition"><X size={20} /></button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 flex justify-center bg-gray-200">
-              <div ref={invoiceRef} className="bg-white p-8 shadow-sm w-full max-w-md mx-auto" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
-                <div className="text-center mb-6 border-b-2 border-dashed border-gray-300 pb-6">
+              <div ref={invoiceRef} className="bg-white p-8 shadow-sm w-full max-w-md mx-auto relative" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
+                
+                {/* User Details on Bill */}
+                <div className="absolute top-4 right-4 text-right text-xs text-gray-500 font-bold">
+                  Billed To:<br/>
+                  <span className="text-gray-800">{currentUser?.name}</span><br/>
+                  {currentUser?.phone}
+                </div>
+
+                <div className="text-center mb-6 border-b-2 border-dashed border-gray-300 pb-6 mt-4">
                   <div className="flex justify-center mb-2"><Store size={40} className="text-blue-800" /></div>
                   <h1 className="text-2xl font-black text-gray-900 uppercase tracking-widest">Sandip Kirana</h1>
                   <p className="text-sm text-gray-600 mt-1">Suryabinayak-1, Bhaktapur<br/>Phone: {WHATSAPP_NUMBER}</p>
@@ -240,7 +406,9 @@ export default function StoreFront() {
                       <tr key={idx} className="border-b border-gray-200 text-sm font-bold text-gray-700">
                         <td className="py-3">
                           {item.name} <br/>
-                          <span className="text-xs text-gray-500 font-normal">{item.displayUnit} (Base: Rs {item.basePrice})</span>
+                          <span className="text-xs text-gray-500 font-normal">
+                            {item.displayUnit} (Rate: Rs {item.unitPrice.toFixed(2)}/1{item.measureUnit})
+                          </span>
                         </td>
                         <td className="py-3 text-right">Rs {item.finalPrice.toFixed(2)}</td>
                       </tr>
@@ -280,17 +448,18 @@ export default function StoreFront() {
               <span className="text-xs text-blue-600 font-black tracking-widest uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-full">{selectedProduct.category}</span>
               <h2 className="text-3xl font-black text-gray-800 mb-4 leading-tight">{selectedProduct.name}</h2>
               
-              <div className="mb-4">
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Select Options:</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="mb-6">
+                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Select Unit:</p>
+                <div className="flex flex-wrap gap-3">
                   {selectedProduct.pricing && selectedProduct.pricing.length > 0 ? (
                     selectedProduct.pricing.map((tier, idx) => (
                       <button 
-                        key={idx} onClick={() => { setSelectedTier(tier); setOrderQty(1); }}
-                        className={`px-4 py-3 border-2 rounded-xl text-left transition-all flex flex-col ${selectedTier === tier ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-300 ring-offset-1' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                        key={idx} 
+                        onClick={() => { setSelectedTier(tier); setOrderQty(tier.measureQty); }}
+                        className={`px-5 py-3 border-2 rounded-xl text-left transition-all flex flex-col items-center ${selectedTier === tier ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-300 ring-offset-1' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}
                       >
-                        <span className="font-bold">{tier.measureQty} {tier.measureUnit}</span>
-                        <span className="text-lg font-black text-gray-800">Rs {tier.price}</span>
+                        <span className="text-xl font-black">{tier.measureUnit}</span>
+                        <span className="text-xs mt-1 font-semibold opacity-70">Rate: Rs {tier.price} / {tier.measureQty}{tier.measureUnit}</span>
                       </button>
                     ))
                   ) : (
@@ -299,31 +468,30 @@ export default function StoreFront() {
                 </div>
               </div>
 
+              {/* 🟢 QUANTITY SELECTOR */}
               <div className="mb-6 bg-yellow-50 p-5 rounded-2xl border border-yellow-200 shadow-inner">
-                <label className="font-bold text-gray-700 block mb-3">
-                  {isLooseItem ? (
-                    <>Quantity (जस्तै: <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded">1.5</span> for Dedh Kilo):</>
-                  ) : (
-                    <>कति प्याकेट / बोरा चाहियो?:</>
-                  )}
+                <label className="font-bold text-gray-700 block mb-3 text-lg">
+                  कति <span className="text-blue-700 font-black">{selectedTier?.measureUnit || 'सामान'}</span> चाहियो?:
                 </label>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <input 
-                    type="number" step={isLooseItem ? "any" : "1"} min="0.1" value={orderQty} onChange={(e) => setOrderQty(e.target.value)} 
+                    type="number" step="any" min="0.1" 
+                    value={orderQty} 
+                    onChange={(e) => setOrderQty(e.target.value)} 
                     className="border-2 border-gray-300 focus:border-blue-600 focus:ring-4 focus:ring-blue-100 rounded-xl p-3 w-32 font-black text-2xl text-center outline-none transition bg-white" 
                   />
-                  <span className="font-black text-gray-500 text-lg">
-                    {isLooseItem ? selectedTier?.measureUnit : `x (${selectedTier?.measureQty} ${selectedTier?.measureUnit})`}
+                  <span className="font-black text-gray-500 text-xl uppercase">
+                    {selectedTier?.measureUnit}
                   </span>
                 </div>
               </div>
 
               <div className="text-3xl font-black text-blue-700 mb-6 border-b pb-4">
-                Total: Rs { ((selectedTier?.price || 0) * (Number(orderQty) || 0)).toFixed(2) }
+                Total: Rs { ((getUnitPrice(selectedTier)) * (Number(orderQty) || 0)).toFixed(2) }
               </div>
               
               <div className="mb-6 flex-1">
-                <p className="text-gray-700 text-sm leading-relaxed">{selectedProduct.description || "Yas product ko barema dherai jankari uplabda chaina."}</p>
+                <p className="text-gray-700 text-sm leading-relaxed">{selectedProduct.description || "यस प्रोडक्टको बारेमा धेरै जानकारी उपलब्ध छैन।"}</p>
               </div>
               
               <button onClick={addToCart} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 hover:-translate-y-1 active:scale-95">
@@ -338,6 +506,8 @@ export default function StoreFront() {
       <nav className="bg-blue-800 text-white shadow-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
+            
+            {/* Logo */}
             <div className="flex items-center gap-2 text-2xl font-black tracking-tight cursor-pointer" onClick={() => window.scrollTo(0,0)}>
               <Store size={32} className="text-yellow-400" />
               <span className="hidden sm:block">सन्दिप किराना स्टोर </span>
@@ -348,31 +518,62 @@ export default function StoreFront() {
               <a href="#" className="text-yellow-400 border-b-2 border-yellow-400 pb-1">Shop</a>
               <a href="#about" className="hover:text-yellow-300 transition">About Us</a>
               <a href="#contact" className="hover:text-yellow-300 transition">Contact</a>
-              <Link to="/admin" className="hover:text-yellow-300 transition">Admin</Link>
             </div>
 
             <div className="flex items-center gap-4">
+              
+              {/* 🟢 User Profile Header / Login Button */}
+              {currentUser ? (
+                <div className="hidden sm:flex items-center gap-3 bg-blue-900 px-4 py-2 rounded-full border border-blue-700 shadow-inner">
+                  <User size={18} className="text-yellow-400" />
+                  <span className="font-bold text-sm truncate max-w-[120px]">{currentUser.name}</span>
+                  <button onClick={handleLogout} className="text-red-300 hover:text-red-400 ml-2 transition" title="Logout"><LogOut size={18} /></button>
+                </div>
+              ) : (
+                <button onClick={() => { setAuthMode('login'); setIsAuthModalOpen(true); }} className="hidden sm:flex items-center gap-2 bg-yellow-400 text-blue-900 px-5 py-2 rounded-full font-black hover:bg-yellow-300 transition shadow-md hover:-translate-y-0.5">
+                  <User size={18} /> Login
+                </button>
+              )}
+
+              {/* Cart Button */}
               <button onClick={() => setIsCartOpen(!isCartOpen)} className="relative p-2 bg-blue-700 rounded-full hover:bg-blue-600 transition shadow-inner flex items-center gap-2 px-5 group">
                 <ShoppingCart size={22} className="group-hover:scale-110 transition" />
                 <span className="font-bold hidden sm:block text-lg">Rs {totalAmount}</span>
                 {totalItems > 0 && (
                   <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-blue-800 shadow-sm animate-pulse">
-                    {totalItems > 99 ? '99+' : parseFloat(totalItems.toFixed(2))}
+                    {totalItems > 99 ? '99+' : totalItems}
                   </span>
                 )}
               </button>
+
+              {/* Mobile Menu Button */}
               <button className="md:hidden p-1 hover:bg-blue-700 rounded-lg transition" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
                 {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
               </button>
             </div>
           </div>
         </div>
-        <div className={`md:hidden absolute w-full left-0 bg-blue-900 border-b border-blue-700 shadow-2xl transition-all duration-300 ease-in-out overflow-hidden ${isMobileMenuOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}>
+
+        {/* Mobile Menu Dropdown */}
+        <div className={`md:hidden absolute w-full left-0 bg-blue-900 border-b border-blue-700 shadow-2xl transition-all duration-300 ease-in-out overflow-hidden ${isMobileMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
           <div className="px-4 py-4 space-y-4">
+            
+            {/* 🟢 Mobile Auth Section */}
+            {currentUser ? (
+               <div className="flex justify-between items-center bg-blue-800 p-3 rounded-xl border border-blue-700 mb-4">
+                 <div className="flex items-center gap-3 text-yellow-400 font-bold"><User size={20}/> {currentUser.name}</div>
+                 <button onClick={handleLogout} className="text-red-300 bg-red-900/30 p-2 rounded-lg hover:bg-red-900/50 transition"><LogOut size={20}/></button>
+               </div>
+            ) : (
+               <button onClick={() => { setIsMobileMenuOpen(false); setAuthMode('login'); setIsAuthModalOpen(true); }} className="w-full bg-yellow-400 text-blue-900 p-3 rounded-xl font-black flex justify-center items-center gap-2 mb-4 shadow-md">
+                 <User size={20}/> Login / Register
+               </button>
+            )}
+
             <a href="#" onClick={() => setIsMobileMenuOpen(false)} className="block text-yellow-400 font-bold p-2 bg-blue-800 rounded-lg">Shop</a>
             <a href="#about" onClick={() => setIsMobileMenuOpen(false)} className="block text-white hover:text-yellow-300 transition font-semibold p-2">About Us</a>
             <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="block text-white hover:text-yellow-300 transition font-semibold p-2">Contact</a>
-            <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block text-white hover:text-yellow-300 transition font-semibold p-2">Admin Panel</Link>
+            <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block text-gray-300 hover:text-white transition font-medium p-2 border-t border-blue-800 mt-2">Admin Panel</Link>
           </div>
         </div>
       </nav>
@@ -418,7 +619,7 @@ export default function StoreFront() {
                     <div className="p-4 md:p-5 flex flex-col flex-1">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] text-blue-600 font-bold tracking-widest uppercase bg-blue-50 px-2 py-1 rounded">{product.category}</span>
-                        <span className="text-[10px] text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded truncate max-w-[80px]">{defaultTier.measureQty} {defaultTier.measureUnit}</span>
+                        <span className="text-[10px] text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded truncate max-w-[80px]">per {defaultTier.measureUnit}</span>
                       </div>
                       <h3 className="text-sm md:text-base font-bold text-gray-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
                       <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
@@ -432,7 +633,7 @@ export default function StoreFront() {
             ) : (
               <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
                 <Search size={64} className="mx-auto mb-4 text-gray-300 animate-bounce" />
-                <p className="text-xl font-bold text-gray-500">Tapai le khojnu vayeko saman vetiyena.</p>
+                <p className="text-xl font-bold text-gray-500">तपाईंले खोज्नुभएको सामान भेटिएन।</p>
               </div>
             )}
           </div>
@@ -449,7 +650,7 @@ export default function StoreFront() {
             {cart.length === 0 ? (
               <div className="text-center py-12 flex-1 flex flex-col items-center justify-center">
                 <img src="https://cdn-icons-png.flaticon.com/512/11329/11329060.png" alt="Empty Cart" className="w-32 mb-6 opacity-40 grayscale hover:grayscale-0 transition duration-500"/>
-                <p className="text-gray-500 font-medium text-lg">Cart khali cha!</p>
+                <p className="text-gray-500 font-medium text-lg">Cart खाली छ!</p>
               </div>
             ) : (
               <div className="space-y-4 flex-1">
