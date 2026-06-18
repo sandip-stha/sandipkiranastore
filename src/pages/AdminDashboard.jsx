@@ -6,6 +6,9 @@ import axios from 'axios';
 // Update this to your actual deployed backend URL
 const API_URL = 'https://kiranastore-luig.onrender.com'; 
 
+// 🟢 NAYA UPDATE: Dropdown Options for Measurement Units
+const MEASURE_UNITS = ['Kg', 'Gram', 'Ltr', 'ml', 'Bora', 'Packet', 'Pouch', 'Piece', 'Box', 'Doz'];
+
 export default function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [activeTab, setActiveTab] = useState('products');
@@ -20,12 +23,12 @@ export default function AdminDashboard() {
   // Category Form State
   const [catForm, setCatForm] = useState({ name: '', isEditing: false, editId: null });
   
-  // Product Form State (Notice: pricing is an array now)
+  // 🟢 NAYA UPDATE: Product Form State (3 fields in pricing array)
   const [productForm, setProductForm] = useState({ 
     name: '', 
     category: '', 
     description: '', 
-    pricing: [{ unit: '', price: '' }], // Array of prices
+    pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }], // 3 Fields
     image: null,
     isEditing: false,
     editId: null
@@ -133,10 +136,10 @@ export default function AdminDashboard() {
   };
 
   // ==========================================
-  // PRODUCT PRICING FUNCTIONS (Dynamic)
+  // 🟢 PRODUCT PRICING FUNCTIONS (Dynamic 3 Fields)
   // ==========================================
   const addPriceField = () => {
-    setProductForm({ ...productForm, pricing: [...productForm.pricing, { unit: '', price: '' }] });
+    setProductForm({ ...productForm, pricing: [...productForm.pricing, { measureQty: '', measureUnit: 'Kg', price: '' }] });
   };
 
   const removePriceField = (index) => {
@@ -163,12 +166,12 @@ export default function AdminDashboard() {
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
-    // Validation
     if (!productForm.name || !productForm.category || !productForm.description) {
       return showToast("Kripaya sabai details fill garnuhos!", "error");
     }
+    
     // Check if at least one complete pricing tier exists
-    const validPricing = productForm.pricing.filter(p => p.unit && p.price);
+    const validPricing = productForm.pricing.filter(p => p.measureQty && p.measureUnit && p.price);
     if (validPricing.length === 0) {
       return showToast("Kamti ma euta Unit ra Price halnu jaruri cha!", "error");
     }
@@ -203,10 +206,9 @@ export default function AdminDashboard() {
         showToast("Product Uploaded Successfully!", "success");
       }
       
-      // Reset Form
       setProductForm({ 
         name: '', category: categories[0]?.name || '', description: '', 
-        pricing: [{ unit: '', price: '' }], image: null, isEditing: false, editId: null 
+        pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }], image: null, isEditing: false, editId: null 
       });
       setImagePreview(null);
       fetchData();
@@ -222,12 +224,12 @@ export default function AdminDashboard() {
       name: prod.name,
       category: prod.category,
       description: prod.description,
-      pricing: prod.pricing && prod.pricing.length > 0 ? prod.pricing : [{ unit: '', price: '' }],
-      image: null, // Don't set URL to file object, we just leave it null unless they upload new
+      pricing: prod.pricing && prod.pricing.length > 0 ? prod.pricing : [{ measureQty: '', measureUnit: 'Kg', price: '' }],
+      image: null,
       isEditing: true,
       editId: prod._id
     });
-    setImagePreview(prod.image); // Show old image from cloud as preview
+    setImagePreview(prod.image);
     window.scrollTo(0, 0);
   };
 
@@ -308,8 +310,6 @@ export default function AdminDashboard() {
           {/* ============================== CATEGORY TAB ============================== */}
           {activeTab === 'categories' && (
             <div className="grid md:grid-cols-2 gap-8">
-              
-              {/* Add/Edit Form */}
               <div className="bg-white p-8 rounded-3xl shadow-sm border h-fit">
                 <h3 className="text-xl font-bold text-gray-700 mb-6 border-b pb-4">
                   {catForm.isEditing ? 'Edit Category' : 'Create New Category'}
@@ -334,7 +334,6 @@ export default function AdminDashboard() {
                 </form>
               </div>
 
-              {/* Table List */}
               <div className="bg-white p-8 rounded-3xl shadow-sm border">
                 <h3 className="text-xl font-bold text-gray-700 mb-6 border-b pb-4">All Categories</h3>
                 <div className="overflow-x-auto">
@@ -366,7 +365,6 @@ export default function AdminDashboard() {
           {activeTab === 'products' && (
             <div className="space-y-8">
               
-              {/* Product Form */}
               <div className="bg-white p-8 rounded-3xl shadow-sm border">
                 <h3 className="text-xl font-bold text-gray-700 mb-6 border-b pb-4">
                   {productForm.isEditing ? 'Edit Product Details' : 'Add New Product'}
@@ -384,39 +382,49 @@ export default function AdminDashboard() {
                     </select>
                   </div>
 
-                  {/* DYNAMIC PRICING SECTION */}
+                  {/* 🟢 DYNAMIC PRICING SECTION - 3 Fields */}
                   <div className="md:col-span-2 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                     <div className="flex justify-between items-center mb-4">
-                      <label className="text-blue-900 font-black text-lg">Product Pricing Tiers 💰</label>
+                      <label className="text-blue-900 font-black text-lg">Product Pricing Tiers ⚖️</label>
                       <button type="button" onClick={addPriceField} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700">
-                        <PlusCircle size={16} /> Add Another Rate
+                        <PlusCircle size={16} /> Add Unit Option
                       </button>
                     </div>
                     
                     <div className="space-y-3">
                       {productForm.pricing.map((priceItem, index) => (
-                        <div key={index} className="flex flex-wrap md:flex-nowrap items-center gap-4 bg-white p-3 rounded-xl border">
-                          <div className="flex-1">
-                            <input 
-                              type="text" value={priceItem.unit} onChange={(e) => handlePriceChange(index, 'unit', e.target.value)} 
-                              placeholder="Unit (e.g. 1 Bora, 1 Kg, Cartoon)" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required 
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <input 
-                              type="number" value={priceItem.price} onChange={(e) => handlePriceChange(index, 'price', e.target.value)} 
-                              placeholder="Price in Rs (e.g. 2000)" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required 
-                            />
-                          </div>
+                        <div key={index} className="flex flex-wrap md:flex-nowrap items-center gap-4 bg-white p-4 rounded-xl border shadow-sm">
+                          
+                          <input 
+                            type="number" step="any" placeholder="Qty (e.g. 200, 1)" 
+                            value={priceItem.measureQty} onChange={(e) => handlePriceChange(index, 'measureQty', e.target.value)} 
+                            className="w-full md:w-32 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold" required 
+                          />
+
+                          <select 
+                            value={priceItem.measureUnit} onChange={(e) => handlePriceChange(index, 'measureUnit', e.target.value)} 
+                            className="w-full md:w-32 p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-center"
+                          >
+                            {MEASURE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                          </select>
+
+                          <span className="font-black text-gray-400 hidden md:block">=</span>
+                          
+                          <input 
+                            type="number" placeholder="Price (Rs)" 
+                            value={priceItem.price} onChange={(e) => handlePriceChange(index, 'price', e.target.value)} 
+                            className="w-full md:w-40 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-black text-blue-700 text-center" required 
+                          />
+                          
                           {productForm.pricing.length > 1 && (
-                            <button type="button" onClick={() => removePriceField(index)} className="p-3 text-red-500 hover:bg-red-50 rounded-lg">
+                            <button type="button" onClick={() => removePriceField(index)} className="p-3 text-red-500 hover:bg-red-50 rounded-lg w-full md:w-auto flex justify-center">
                               <Trash2 size={20} />
                             </button>
                           )}
                         </div>
                       ))}
                     </div>
-                    <p className="text-xs text-gray-500 mt-3">* Note: Tapailye Bora, Kg, Pouch anusar xutta-xuttai price add garna saknuhuncha.</p>
+                    <p className="text-sm text-gray-500 mt-4 font-medium">💡 Example: [200] [Gram] = [40], or [1] [Kg] = [100]</p>
                   </div>
 
                   <div className="md:col-span-2">
@@ -435,7 +443,7 @@ export default function AdminDashboard() {
                       {isLoading ? 'Processing...' : (productForm.isEditing ? 'Update Product Details' : 'Upload Product to Store')}
                     </button>
                     {productForm.isEditing && (
-                      <button type="button" onClick={() => { setProductForm({ name: '', category: categories[0]?.name || '', description: '', pricing: [{ unit: '', price: '' }], image: null, isEditing: false, editId: null }); setImagePreview(null); }} className="bg-gray-200 text-gray-800 py-4 px-8 rounded-xl font-bold">
+                      <button type="button" onClick={() => { setProductForm({ name: '', category: categories[0]?.name || '', description: '', pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }], image: null, isEditing: false, editId: null }); setImagePreview(null); }} className="bg-gray-200 text-gray-800 py-4 px-8 rounded-xl font-bold">
                         Cancel Edit
                       </button>
                     )}
@@ -451,37 +459,36 @@ export default function AdminDashboard() {
                     <thead>
                       <tr className="bg-gray-50 border-b">
                         <th className="p-4 font-bold text-gray-600">Image</th>
-                        <th className="p-4 font-bold text-gray-600">Name</th>
-                        <th className="p-4 font-bold text-gray-600">Category</th>
-                        <th className="p-4 font-bold text-gray-600">Pricing (Unit : Rs)</th>
+                        <th className="p-4 font-bold text-gray-600">Name & Category</th>
+                        <th className="p-4 font-bold text-gray-600">Pricing Options</th>
                         <th className="p-4 font-bold text-gray-600 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {products.map(prod => (
                         <tr key={prod._id} className="border-b hover:bg-gray-50">
-                          <td className="p-4"><img src={prod.image} alt="img" className="w-12 h-12 rounded object-cover border" /></td>
-                          <td className="p-4 font-bold text-gray-800">{prod.name}</td>
-                          <td className="p-4 text-gray-600">
-                            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold">{prod.category}</span>
+                          <td className="p-4"><img src={prod.image} alt="img" className="w-14 h-14 rounded-xl object-cover border shadow-sm" /></td>
+                          <td className="p-4">
+                            <div className="font-bold text-gray-800 text-lg">{prod.name}</div>
+                            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider">{prod.category}</span>
                           </td>
                           <td className="p-4 text-sm text-gray-700">
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1.5">
                               {prod.pricing && prod.pricing.map((p, i) => (
-                                <span key={i} className="bg-green-50 text-green-800 px-2 py-1 border border-green-200 rounded">
-                                  {p.unit} : <b>Rs {p.price}</b>
+                                <span key={i} className="bg-green-50 text-green-800 px-3 py-1 border border-green-100 rounded-lg font-bold w-max shadow-sm">
+                                  {p.measureQty} {p.measureUnit} = Rs {p.price}
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td className="p-4 flex justify-end gap-2 items-center h-full">
-                            <button onClick={() => editProduct(prod)} className="text-blue-500 hover:bg-blue-100 p-2 rounded-lg transition"><Edit size={20}/></button>
+                          <td className="p-4 text-right align-middle">
+                            <button onClick={() => editProduct(prod)} className="text-blue-500 hover:bg-blue-100 p-2 rounded-lg transition mr-2"><Edit size={20}/></button>
                             <button onClick={() => deleteProduct(prod._id)} className="text-red-500 hover:bg-red-100 p-2 rounded-lg transition"><Trash2 size={20}/></button>
                           </td>
                         </tr>
                       ))}
                       {products.length === 0 && (
-                        <tr><td colSpan="5" className="p-6 text-center text-gray-400">No products found.</td></tr>
+                        <tr><td colSpan="4" className="p-6 text-center text-gray-400 font-bold">No products found.</td></tr>
                       )}
                     </tbody>
                   </table>
