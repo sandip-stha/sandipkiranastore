@@ -1,17 +1,20 @@
 // AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
-import { Package, FolderPlus, LogOut, LayoutDashboard, Lock, Loader2, AlertCircle, CheckCircle, XCircle, PlusCircle, Trash2, Edit } from 'lucide-react';
+import { 
+  Package, FolderPlus, LogOut, LayoutDashboard, Lock, Loader2, 
+  ShoppingBag, Bell, CheckCircle2, Trash2, Edit, CheckCircle, Clock, PlusCircle 
+} from 'lucide-react';
 import axios from 'axios';
 
 // Update this to your actual deployed backend URL
 const API_URL = 'https://kiranastore-luig.onrender.com'; 
 
-// 🟢 NAYA UPDATE: Dropdown Options for Measurement Units
+// Dropdown Options for Measurement Units
 const MEASURE_UNITS = ['Kg', 'Gram', 'Ltr', 'ml', 'Bora', 'Packet', 'Pouch', 'Piece', 'Box', 'Doz'];
 
 export default function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeTab, setActiveTab] = useState('products');
+  const [activeTab, setActiveTab] = useState('orders'); // Default to orders now
   
   // Login State
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -19,19 +22,16 @@ export default function AdminDashboard() {
   // Data States
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]); // Orders State
   
   // Category Form State
   const [catForm, setCatForm] = useState({ name: '', isEditing: false, editId: null });
   
-  // 🟢 NAYA UPDATE: Product Form State (3 fields in pricing array)
+  // Product Form State
   const [productForm, setProductForm] = useState({ 
-    name: '', 
-    category: '', 
-    description: '', 
-    pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }], // 3 Fields
-    image: null,
-    isEditing: false,
-    editId: null
+    name: '', category: '', description: '', 
+    pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }], 
+    image: null, isEditing: false, editId: null
   });
   const [imagePreview, setImagePreview] = useState(null);
 
@@ -44,11 +44,15 @@ export default function AdminDashboard() {
     setTimeout(() => setToast({ isVisible: false, message: '', type: 'success' }), 3000);
   };
 
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (token) setIsLoggedIn(true);
-    fetchData();
-  }, []);
+  const fetchOrders = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.get(`${API_URL}/api/orders`, { headers: { Authorization: `Bearer ${token}` } });
+      setOrders(res.data);
+    } catch (error) {
+      console.error("Order fetch error:", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -62,12 +66,27 @@ export default function AdminDashboard() {
       if (catRes.data.length > 0 && !productForm.category) {
         setProductForm(prev => ({ ...prev, category: catRes.data[0].name }));
       }
+      fetchOrders();
     } catch (error) {
       console.error("Data fetch error:", error);
     }
   };
 
-  // 🔐 Auth Handlers
+  useEffect(() => {
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      setIsLoggedIn(true);
+      fetchData();
+      
+      // Auto refresh orders every 30 seconds
+      const interval = setInterval(fetchOrders, 30000); 
+      return () => clearInterval(interval);
+    }
+  }, []);
+
+  // ==========================================
+  // 🔐 AUTH FUNCTIONS
+  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -91,7 +110,33 @@ export default function AdminDashboard() {
   };
 
   // ==========================================
-  // CATEGORY FUNCTIONS
+  // 🛍️ ORDER FUNCTIONS
+  // ==========================================
+  const updateOrderStatus = async (id, status) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.put(`${API_URL}/api/orders/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+      showToast(`Order marked as ${status}!`, "success");
+      fetchOrders();
+    } catch (err) {
+      showToast("Failed to update order", "error");
+    }
+  };
+
+  const deleteOrder = async (id) => {
+    if(!window.confirm("Are you sure? यो अर्डर सधैंको लागि डिलिट हुनेछ!")) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${API_URL}/api/orders/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      showToast("Order Deleted!", "success");
+      fetchOrders();
+    } catch (err) {
+      showToast("Failed to delete order", "error");
+    }
+  };
+
+  // ==========================================
+  // 📁 CATEGORY FUNCTIONS
   // ==========================================
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
@@ -136,7 +181,7 @@ export default function AdminDashboard() {
   };
 
   // ==========================================
-  // 🟢 PRODUCT PRICING FUNCTIONS (Dynamic 3 Fields)
+  // 📦 PRODUCT FUNCTIONS
   // ==========================================
   const addPriceField = () => {
     setProductForm({ ...productForm, pricing: [...productForm.pricing, { measureQty: '', measureUnit: 'Kg', price: '' }] });
@@ -153,9 +198,6 @@ export default function AdminDashboard() {
     setProductForm({ ...productForm, pricing: newPricing });
   };
 
-  // ==========================================
-  // PRODUCT FUNCTIONS
-  // ==========================================
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -170,7 +212,6 @@ export default function AdminDashboard() {
       return showToast("Kripaya sabai details fill garnuhos!", "error");
     }
     
-    // Check if at least one complete pricing tier exists
     const validPricing = productForm.pricing.filter(p => p.measureQty && p.measureUnit && p.price);
     if (validPricing.length === 0) {
       return showToast("Kamti ma euta Unit ra Price halnu jaruri cha!", "error");
@@ -185,7 +226,6 @@ export default function AdminDashboard() {
     formData.append('name', productForm.name);
     formData.append('category', productForm.category);
     formData.append('description', productForm.description);
-    // Send pricing array as JSON string
     formData.append('pricing', JSON.stringify(validPricing));
     
     if (productForm.image instanceof File) {
@@ -245,6 +285,8 @@ export default function AdminDashboard() {
     }
   };
 
+  const pendingOrdersCount = orders.filter(o => o.status === 'Pending').length;
+
   // --------- LOGIN SCREEN ---------
   if (!isLoggedIn) {
     return (
@@ -281,31 +323,132 @@ export default function AdminDashboard() {
       )}
 
       {/* Sidebar */}
-      <div className="w-72 bg-blue-900 text-white p-6 shadow-2xl hidden md:flex flex-col z-10">
-        <h2 className="text-2xl font-black mb-10 flex items-center gap-3 border-b border-blue-800 pb-6">
-          <LayoutDashboard size={28} className="text-yellow-400" /> Admin
+      <div className="w-72 bg-[#0A192F] text-white p-6 shadow-2xl hidden md:flex flex-col z-10">
+        <h2 className="text-2xl font-black mb-10 flex items-center gap-3 border-b border-gray-700 pb-6">
+          <LayoutDashboard size={28} className="text-yellow-400" /> Admin Panel
         </h2>
         <ul className="space-y-3 flex-1">
-          <li onClick={() => setActiveTab('products')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold ${activeTab === 'products' ? 'bg-blue-700 text-yellow-300' : 'hover:bg-blue-800 text-gray-300'}`}>
+          <li onClick={() => setActiveTab('orders')} className={`cursor-pointer p-4 rounded-xl flex items-center justify-between font-semibold transition ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
+            <div className="flex items-center gap-3"><ShoppingBag size={22} /> Orders</div>
+            {pendingOrdersCount > 0 && (
+              <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.6)]">
+                {pendingOrdersCount} New
+              </span>
+            )}
+          </li>
+          <li onClick={() => setActiveTab('products')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'products' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
             <Package size={22} /> Manage Products
           </li>
-          <li onClick={() => setActiveTab('categories')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold ${activeTab === 'categories' ? 'bg-blue-700 text-yellow-300' : 'hover:bg-blue-800 text-gray-300'}`}>
+          <li onClick={() => setActiveTab('categories')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'categories' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
             <FolderPlus size={22} /> Manage Categories
           </li>
         </ul>
-        <div className="border-t border-blue-800 pt-6">
-          <button onClick={handleLogout} className="w-full cursor-pointer p-4 rounded-xl text-red-300 hover:text-white hover:bg-red-500/20 flex items-center justify-center gap-2 font-bold">
+        <div className="border-t border-gray-700 pt-6">
+          <button onClick={handleLogout} className="w-full cursor-pointer p-4 rounded-xl text-red-400 hover:text-white hover:bg-red-500/20 flex items-center justify-center gap-2 font-bold transition">
             <LogOut size={20} /> Logout
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto h-screen">
+      <div className="flex-1 p-8 overflow-y-auto h-screen bg-[#F3F4F6]">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-4xl font-black text-gray-800 mb-8">
-            {activeTab === 'products' ? 'Manage Store Products 📦' : 'Manage Store Categories 📁'}
-          </h1>
+          
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-black text-gray-800">
+              {activeTab === 'orders' ? 'Order Details 🛍️' : activeTab === 'products' ? 'Manage Products 📦' : 'Manage Categories 📁'}
+            </h1>
+            {activeTab === 'orders' && (
+               <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border flex items-center gap-3">
+                 <div className="relative">
+                   <Bell size={24} className="text-blue-600" />
+                   {pendingOrdersCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>}
+                 </div>
+                 <span className="font-bold text-gray-700">{pendingOrdersCount} Pending Orders</span>
+               </div>
+            )}
+          </div>
+
+          {/* ============================== ORDERS TAB ============================== */}
+          {activeTab === 'orders' && (
+            <div className="space-y-6">
+              {orders.length === 0 ? (
+                <div className="bg-white p-10 rounded-3xl border text-center text-gray-400 font-bold text-xl">कुनै अर्डर आएको छैन।</div>
+              ) : (
+                orders.map((order) => (
+                  <div key={order._id} className={`bg-white rounded-3xl shadow-sm border overflow-hidden transition-all ${order.status === 'Pending' ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-green-500 opacity-80'}`}>
+                    
+                    <div className="bg-gray-50/80 p-5 md:p-6 border-b flex flex-col md:flex-row justify-between md:items-center gap-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-1">
+                          <h3 className="text-xl font-black text-gray-800">{order.customer?.name || 'Unknown User'}</h3>
+                          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 ${order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' : 'bg-green-100 text-green-700 border border-green-200'}`}>
+                            {order.status === 'Pending' ? <Clock size={14}/> : <CheckCircle size={14}/>} {order.status}
+                          </span>
+                        </div>
+                        <p className="text-gray-500 text-sm font-bold flex gap-3">
+                          <span>📞 {order.customer?.phone}</span>
+                          <span className="hidden md:inline">|</span>
+                          <span>📧 {order.customer?.email}</span>
+                        </p>
+                      </div>
+                      <div className="text-left md:text-right">
+                        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Total Amount</p>
+                        <p className="text-3xl font-black text-blue-700">Rs {order.totalAmount}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 md:p-6 flex flex-col md:flex-row gap-8">
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Order Items</p>
+                        <div className="bg-gray-50 rounded-2xl border p-4 space-y-3">
+                          {order.items?.map((item, i) => (
+                            <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl border shadow-sm">
+                              <div className="flex items-center gap-3">
+                                <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />
+                                <div>
+                                  <p className="font-bold text-gray-800 text-sm">{item.name}</p>
+                                  <p className="text-xs text-gray-500 font-bold">{item.qty} {item.displayUnit}</p>
+                                </div>
+                              </div>
+                              <span className="font-black text-gray-800">Rs {item.finalPrice}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="w-full md:w-1/3 flex flex-col justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Delivery Details</p>
+                          <div className="bg-yellow-50/50 p-4 rounded-2xl border border-yellow-100 mb-6">
+                            <p className="font-bold text-gray-800 mb-1">📍 {order.customer?.address}</p>
+                            <p className="text-sm text-gray-600 font-semibold">Landmark: <span className="text-blue-700">{order.customer?.landmark}</span></p>
+                            <p className="text-xs text-gray-400 mt-3 font-bold">Ordered At: {new Date(order.createdAt).toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                          {order.status === 'Pending' ? (
+                            <button onClick={() => updateOrderStatus(order._id, 'Delivered')} className="flex-1 bg-green-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-md">
+                              <CheckCircle2 size={18} /> Mark Delivered
+                            </button>
+                          ) : (
+                            <div className="flex-1 bg-gray-100 text-green-600 py-3 rounded-xl font-black flex items-center justify-center gap-2 border border-green-200">
+                              <CheckCircle size={18} /> Delivered
+                            </div>
+                          )}
+                          <button onClick={() => deleteOrder(order._id)} className="bg-red-50 text-red-500 px-4 rounded-xl hover:bg-red-500 hover:text-white transition shadow-sm border border-red-100">
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
           {/* ============================== CATEGORY TAB ============================== */}
           {activeTab === 'categories' && (
@@ -364,7 +507,6 @@ export default function AdminDashboard() {
           {/* ============================== PRODUCT TAB ============================== */}
           {activeTab === 'products' && (
             <div className="space-y-8">
-              
               <div className="bg-white p-8 rounded-3xl shadow-sm border">
                 <h3 className="text-xl font-bold text-gray-700 mb-6 border-b pb-4">
                   {productForm.isEditing ? 'Edit Product Details' : 'Add New Product'}
@@ -382,7 +524,6 @@ export default function AdminDashboard() {
                     </select>
                   </div>
 
-                  {/* 🟢 DYNAMIC PRICING SECTION - 3 Fields */}
                   <div className="md:col-span-2 bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                     <div className="flex justify-between items-center mb-4">
                       <label className="text-blue-900 font-black text-lg">Product Pricing Tiers ⚖️</label>
@@ -394,28 +535,23 @@ export default function AdminDashboard() {
                     <div className="space-y-3">
                       {productForm.pricing.map((priceItem, index) => (
                         <div key={index} className="flex flex-wrap md:flex-nowrap items-center gap-4 bg-white p-4 rounded-xl border shadow-sm">
-                          
                           <input 
                             type="number" step="any" placeholder="Qty (e.g. 200, 1)" 
                             value={priceItem.measureQty} onChange={(e) => handlePriceChange(index, 'measureQty', e.target.value)} 
                             className="w-full md:w-32 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold" required 
                           />
-
                           <select 
                             value={priceItem.measureUnit} onChange={(e) => handlePriceChange(index, 'measureUnit', e.target.value)} 
                             className="w-full md:w-32 p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-center"
                           >
                             {MEASURE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                           </select>
-
                           <span className="font-black text-gray-400 hidden md:block">=</span>
-                          
                           <input 
                             type="number" placeholder="Price (Rs)" 
                             value={priceItem.price} onChange={(e) => handlePriceChange(index, 'price', e.target.value)} 
                             className="w-full md:w-40 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-black text-blue-700 text-center" required 
                           />
-                          
                           {productForm.pricing.length > 1 && (
                             <button type="button" onClick={() => removePriceField(index)} className="p-3 text-red-500 hover:bg-red-50 rounded-lg w-full md:w-auto flex justify-center">
                               <Trash2 size={20} />
