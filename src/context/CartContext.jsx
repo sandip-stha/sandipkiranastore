@@ -121,7 +121,7 @@ export const CartProvider = ({ children }) => {
 
   return (
     <CartContext.Provider value={{
-      cart, isCartOpen, setIsCartOpen, currentUser, setCurrentUser,
+      cart, setCart, isCartOpen, setIsCartOpen, currentUser, setCurrentUser,
       addToCart, handleCartQtyChange, removeItem, totalAmount, totalItems, handleLogout, showModal,
       handleCartTierChange 
     }}>
