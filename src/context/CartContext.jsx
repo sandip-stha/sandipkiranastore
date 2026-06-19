@@ -18,9 +18,23 @@ export const CartProvider = ({ children }) => {
     setAppModal({ isOpen: true, type, title, message, whatsappUrl });
   };
 
-  useEffect(() => {
+ useEffect(() => {
     const storedUser = localStorage.getItem('sk_user');
-    if (storedUser) setCurrentUser(JSON.parse(storedUser));
+    
+    // यदि भ्यालु छ, तर "undefined" वा "null" जस्ता बिग्रिएका शब्द छैनन् भने मात्र Parse गर्ने
+    if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setCurrentUser(parsedUser);
+      } catch (error) {
+        console.error("Local storage error, clearing corrupted data:", error);
+        localStorage.removeItem('sk_user'); 
+        localStorage.removeItem('sk_token');
+      }
+    } else {
+      // यदि "undefined" आएको छ भने त्यसलाई डिलिट गरिदिने
+      localStorage.removeItem('sk_user');
+    }
   }, []);
 
   const addToCart = (product, tier, orderQty) => {
@@ -59,7 +73,7 @@ export const CartProvider = ({ children }) => {
         qty: Number(orderQty), 
         finalPrice: calculatedPrice, 
         displayUnit: displayUnitStr,
-        pricing: product.pricing // <--- यो थप्न जरुरी थियो (यसले मात्र Bora/Kg देखाउँछ)
+        pricing: product.pricing 
       }]);
     }
     setIsCartOpen(true);
@@ -95,9 +109,9 @@ export const CartProvider = ({ children }) => {
         const unitPrice = selectedTier.price / selectedTier.measureQty;
         return {
           ...item,
-          displayUnit: selectedTier.measureUnit, // Unit change गर्ने (Bora/Kg)
+          displayUnit: selectedTier.measureUnit, 
           unitPrice: unitPrice,
-          qty: selectedTier.measureQty, // Quantity reset गर्ने
+          qty: selectedTier.measureQty, 
           finalPrice: unitPrice * selectedTier.measureQty
         };
       }
@@ -109,7 +123,7 @@ export const CartProvider = ({ children }) => {
     <CartContext.Provider value={{
       cart, isCartOpen, setIsCartOpen, currentUser, setCurrentUser,
       addToCart, handleCartQtyChange, removeItem, totalAmount, totalItems, handleLogout, showModal,
-      handleCartTierChange // <--- यो पास गर्न छुटेको थियो!
+      handleCartTierChange 
     }}>
       {children}
       
