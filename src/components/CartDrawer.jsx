@@ -19,76 +19,56 @@ export default function CartDrawer() {
     setShowInvoice(true); 
   };
 
-const sendBillAsPhoto = async () => {
-    if (!invoiceRef.current) return;
-    setIsGenerating(true);
-    
-    try {
-      const element = invoiceRef.current;
-      
-      // Fix 1: फोटो काटिनबाट बचाउन, खिच्नु अघि कन्टेनरलाई पूरै माथि स्क्रोल गर्ने
-      if (element.parentElement) {
-        element.parentElement.scrollTop = 0;
-      }
-
-      // Fix 2: html2canvas लाई पूरा Height र Width लिन निर्देशन दिने
-      const canvas = await html2canvas(element, { 
-        scale: 2, // High Quality 
-        useCORS: true, 
-        backgroundColor: '#ffffff',
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-        scrollY: 0
-      });
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) throw new Error('Blob creation failed');
-
-        const fileName = `Sandip_Kirana_Bill_${Date.now()}.png`;
-        const file = new File([blob], fileName, { type: 'image/png' });
-
-        // Fix 3: मोबाइलको लागि Native Share Menu खोल्ने (यो एकदमै भरपर्दो छ)
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: 'Sandip Kirana Bill',
-              text: `Namaste! Mero order ko bill maile yaha attach gardai chu. (Name: ${currentUser?.name || 'Customer'})`,
-            });
-            // Share सफल भएपछि Modal बन्द गर्ने
-            setShowInvoice(false);
-            setIsCartOpen(false);
-            return; // यहाँबाट सिधै बाहिर निस्किने
-          } catch (shareError) {
-            console.log('User cancelled share or it failed, falling back to download...');
-            // यदि युजरले Share काटीदियो वा केही एरर आयो भने तलको पुरानो तरिकाबाट डाउनलोड हुन्छ
-          }
-        }
-
-        // डेस्कटप (Laptop/PC) को लागि पुरानै भरपर्दो डाउनलोड तरिका
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        const messageStr = `Namaste! Mero order ko bill maile download garera yaha attach gardai chu. (Name: ${currentUser?.name || 'Customer'})`;
-        const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(messageStr)}`;
-
-        setShowInvoice(false);
-        showModal('success', 'Bill Downloaded! 📥', "अब तलको बटन थिचेर WhatsApp खोल्नुहोस् र 'Gallery' वा 'Downloads' बाट भर्खरै Download भएको बिलको फोटो पठाउनुहोला।", whatsappUrl);
+  const sendBillAsPhoto = async () => {
+        if (!invoiceRef.current) return;
+        setIsGenerating(true);
         
-      }, 'image/png');
-    } catch (error) {
-      console.error(error);
-      showModal('error', 'Opps!', 'Bill generate garna sakiyena. कृपया फेरि प्रयास गर्नुहोस्।');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+        try {
+        const element = invoiceRef.current;
+
+        const canvas = await html2canvas(element, { 
+            scale: 2, 
+            useCORS: true, 
+            backgroundColor: '#ffffff',
+            // यो onclone ले भित्रभित्रै सबै Scroll बन्देज हटाएर पूरै लामो फोटो खिच्न मद्दत गर्छ
+            onclone: (clonedDoc) => {
+            const el = clonedDoc.getElementById('print-invoice');
+            if (el) {
+                let parent = el.parentElement;
+                // जबसम्म माथि Body सम्म पुग्दैन, सबैको Scroll र Height बन्देज खुला गरिदिने
+                while (parent && parent.tagName !== 'BODY') {
+                parent.style.overflow = 'visible';
+                parent.style.maxHeight = 'none';
+                parent.style.height = 'auto';
+                parent.style.transform = 'none'; // Tailwind को Animation ले काटिनबाट बचाउँछ
+                parent = parent.parentElement;
+                }
+            }
+            }
+        });
+
+        canvas.toBlob(async (blob) => {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Sandip_Kirana_Bill_${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            const messageStr = `Namaste! Mero order ko bill maile download garera yaha attach gardai chu. (Name: ${currentUser?.name || 'Customer'})`;
+            const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(messageStr)}`;
+
+            setShowInvoice(false);
+            showModal('success', 'Bill Downloaded! 📥', "अब तलको बटन थिचेर WhatsApp खोल्नुहोस् र 'Gallery' बाट भर्खरै Download भएको बिलको फोटो पठाउनुहोला।", whatsappUrl);
+        }, 'image/png');
+        } catch (error) {
+        showModal('error', 'Opps!', 'Bill generate garna sakiyena.');
+        } finally {
+        setIsGenerating(false);
+        }
+    };
 
   const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
@@ -236,7 +216,7 @@ const sendBillAsPhoto = async () => {
               <button onClick={() => setShowInvoice(false)} className="bg-gray-100 p-2 rounded-full text-gray-600 hover:text-red-500 hover:bg-red-50 transition"><X size={20} /></button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 flex justify-center bg-gray-100 hide-scrollbar">
-              <div ref={invoiceRef} className="bg-white p-8 shadow-md w-full max-w-md mx-auto relative rounded-sm" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
+              <div ref={invoiceRef} id='print-invoice' className="bg-white p-8 shadow-md w-full max-w-md mx-auto relative rounded-sm" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
                 <div className="absolute top-4 right-4 text-right text-xs text-gray-500 font-bold">Billed To:<br/><span className="text-gray-800 text-sm">{currentUser?.name}</span></div>
                 <div className="text-center mb-6 border-b-2 border-dashed border-gray-300 pb-6 mt-4">
                   <div className="flex justify-center mb-2"><Store size={40} className="text-blue-800" /></div>
