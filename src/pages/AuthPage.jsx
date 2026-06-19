@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { User, Mail, Smartphone, Lock, MapPin, Navigation, Loader2, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import { useCart } from '../context/CartContext'; // ⚠️ नोट: यो पाथ (Path) मिलेको छ कि छैन चेक गर्नुहोला (जस्तै '../context/CartContext')
 
 export default function AuthPage() {
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [authMode, setAuthMode] = useState('login'); 
   const [authForm, setAuthForm] = useState({ 
     name: '', phone: '', email: '', address: '', landmark: '', password: '', confirmPassword: '' 
   });
@@ -13,6 +14,8 @@ export default function AuthPage() {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const navigate = useNavigate();
+  // Context बाट setCurrentUser र showModal तान्ने
+  const { setCurrentUser, showModal } = useCart(); 
   const API_BASE_URL = 'https://kiranastore-luig.onrender.com/api/auth'; 
 
   const handleAuthSubmit = async (e) => {
@@ -38,12 +41,27 @@ export default function AuthPage() {
         
         localStorage.setItem('sk_token', res.data.token);
         localStorage.setItem('sk_user', JSON.stringify(res.data.user));
+        
+        // 🔥 FIX: रिफ्रेस नगरिकन सिधै युजर अपडेट गर्ने
+        setCurrentUser(res.data.user);
+        
+        // 🔥 FIX: खाता बनेको पपअप म्यासेज देखाउने
+        showModal('success', 'खाता बन्यो!', 'तपाईंको खाता सफलतापूर्वक बन्यो र लगइन भयो।');
+        
         navigate('/'); 
       } 
       else {
         const res = await axios.post(`${API_BASE_URL}/login`, { phone: authForm.phone, password: authForm.password });
+        
         localStorage.setItem('sk_token', res.data.token);
         localStorage.setItem('sk_user', JSON.stringify(res.data.user));
+
+        // 🔥 FIX: रिफ्रेस नगरिकन सिधै युजर अपडेट गर्ने
+        setCurrentUser(res.data.user);
+
+        // 🔥 FIX: लगइन सफल भएको पपअप देखाउने
+        showModal('success', 'Login Successful', 'तपाईं पसलमा आउनुभयो, अब अर्डर गर्न सक्नुहुन्छ।');
+
         navigate('/');
       }
     } catch (err) {
