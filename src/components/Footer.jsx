@@ -1,5 +1,7 @@
 import React from 'react';
 import { Store, Phone, MapPin } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
 
 export default function Footer() {
   const WHATSAPP_NUMBER = "+9779860428834"; 
@@ -27,8 +29,8 @@ export default function Footer() {
         <div>
           <h3 className="text-white font-bold text-lg mb-4">Quick Links</h3>
           <ul className="space-y-2">
-            <li><a href="#" className="hover:text-yellow-400 transition">Home</a></li>
-            <li><a href="#" className="hover:text-yellow-400 transition">Shop Products</a></li>
+            <li><Link to="/" className="hover:text-yellow-400 transition">Home</Link></li>
+            <li><Link to="shop" className="hover:text-yellow-400 transition">Shop Products</Link></li>
           </ul>
         </div>
       </div>
