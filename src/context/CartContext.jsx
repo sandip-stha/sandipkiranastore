@@ -50,8 +50,16 @@ export const CartProvider = ({ children }) => {
       }));
     } else {
       setCart([...cart, { 
-        cartItemId, productId: product._id, name: product.name, image: product.image, 
-        measureUnit: tier.measureUnit, unitPrice: unitPrice, qty: Number(orderQty), finalPrice: calculatedPrice, displayUnit: displayUnitStr
+        cartItemId, 
+        productId: product._id, 
+        name: product.name, 
+        image: product.image, 
+        measureUnit: tier.measureUnit, 
+        unitPrice: unitPrice, 
+        qty: Number(orderQty), 
+        finalPrice: calculatedPrice, 
+        displayUnit: displayUnitStr,
+        pricing: product.pricing // <--- यो थप्न जरुरी थियो (यसले मात्र Bora/Kg देखाउँछ)
       }]);
     }
     setIsCartOpen(true);
@@ -81,10 +89,27 @@ export const CartProvider = ({ children }) => {
   const totalAmount = cart.reduce((sum, item) => sum + item.finalPrice, 0).toFixed(2);
   const totalItems = cart.length;
 
+  const handleCartTierChange = (cartItemId, selectedTier) => {
+    setCart(prevCart => prevCart.map(item => {
+      if (item.cartItemId === cartItemId) {
+        const unitPrice = selectedTier.price / selectedTier.measureQty;
+        return {
+          ...item,
+          displayUnit: selectedTier.measureUnit, // Unit change गर्ने (Bora/Kg)
+          unitPrice: unitPrice,
+          qty: selectedTier.measureQty, // Quantity reset गर्ने
+          finalPrice: unitPrice * selectedTier.measureQty
+        };
+      }
+      return item;
+    }));
+  };
+
   return (
     <CartContext.Provider value={{
       cart, isCartOpen, setIsCartOpen, currentUser, setCurrentUser,
-      addToCart, handleCartQtyChange, removeItem, totalAmount, totalItems, handleLogout, showModal
+      addToCart, handleCartQtyChange, removeItem, totalAmount, totalItems, handleLogout, showModal,
+      handleCartTierChange // <--- यो पास गर्न छुटेको थियो!
     }}>
       {children}
       
