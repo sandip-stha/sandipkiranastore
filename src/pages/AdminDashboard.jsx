@@ -1,10 +1,21 @@
 // AdminDashboard.jsx
-import React, { useState, useEffect } from 'react';
-import { 
-  Package, FolderPlus, LogOut, LayoutDashboard, Lock, Loader2, 
-  ShoppingBag, Bell, CheckCircle2, Trash2, Edit, CheckCircle, Clock, PlusCircle 
-} from 'lucide-react';
 import axios from 'axios';
+import imageCompression from 'browser-image-compression'; // 🌟 NAYA: Image Compress garna
+import {
+  Bell,
+  CheckCircle,
+  CheckCircle2,
+  Clock,
+  Edit,
+  FolderPlus,
+  LayoutDashboard, Lock,
+  LogOut,
+  Package,
+  PlusCircle,
+  ShoppingBag,
+  Trash2
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 // Update this to your actual deployed backend URL
 const API_URL = 'https://kiranastore-luig.onrender.com'; 
@@ -198,11 +209,36 @@ export default function AdminDashboard() {
     setProductForm({ ...productForm, pricing: newPricing });
   };
 
-  const handleImageChange = (e) => {
+  // 🌟 NAYA: Image Compress Garne Logic (Size reduce to < 100KB)
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      setProductForm({ ...productForm, image: file });
+      // Dekhauna ko lagi turuntai purano/thulo image ko preview set garne
       setImagePreview(URL.createObjectURL(file)); 
+
+      try {
+        setIsLoading(true); // Compression hudai chha vanera loading dekhauna
+        
+        const options = {
+          maxSizeMB: 0.1, // 0.1 MB vaneko 100KB ho
+          maxWidthOrHeight: 800, // Image ko max width 800px ma jharne
+          useWebWorker: true,
+          fileType: 'image/jpeg' // JPEG format ma convert garne
+        };
+
+        const compressedFile = await imageCompression(file, options);
+        
+        // Compress vayo, aba form state ma save garne
+        setProductForm({ ...productForm, image: compressedFile });
+        
+        // Update the preview with the compressed image (optional)
+        setImagePreview(URL.createObjectURL(compressedFile));
+      } catch (error) {
+        console.error("Error compressing image:", error);
+        showToast("Image compress garna samasya vayo!", "error");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -228,7 +264,8 @@ export default function AdminDashboard() {
     formData.append('description', productForm.description);
     formData.append('pricing', JSON.stringify(validPricing));
     
-    if (productForm.image instanceof File) {
+    // File attach garchha FormData ma
+    if (productForm.image instanceof File || productForm.image instanceof Blob) {
       formData.append('image', productForm.image);
     }
 
@@ -570,8 +607,9 @@ export default function AdminDashboard() {
                   
                   <div className="md:col-span-2">
                     <label className="block text-gray-600 font-semibold mb-2">Image {productForm.isEditing && '(Leave blank to keep old image)'}</label>
-                    <input type="file" accept="image/*" onChange={handleImageChange} className="w-full p-3 border rounded-xl" />
-                    {imagePreview && <img src={imagePreview} alt="Preview" className="w-20 h-20 mt-3 object-cover rounded-lg shadow" />}
+                    <input type="file" accept="image/*" onChange={handleImageChange} className="w-full p-3 border rounded-xl" disabled={isLoading} />
+                    {isLoading && <span className="text-blue-500 text-sm mt-2 font-bold animate-pulse">Compressing Image...</span>}
+                    {imagePreview && !isLoading && <img src={imagePreview} alt="Preview" className="w-20 h-20 mt-3 object-cover rounded-lg shadow" />}
                   </div>
 
                   <div className="md:col-span-2 flex gap-4 mt-4">
