@@ -1,7 +1,7 @@
 // src/context/CartContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, AlertCircle, Info, Share2 } from 'lucide-react';
+import { Download, AlertCircle, Info, Share2, CheckCircle } from 'lucide-react'; // CheckCircle थपियो
 
 const CartContext = createContext();
 
@@ -11,18 +11,31 @@ export const CartProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
 
+  // पुरानो Modal को लागि
   const [appModal, setAppModal] = useState({
     isOpen: false, type: 'success', title: '', message: '', whatsappUrl: ''
+  });
+
+  // 🌟 NAYA: सानो Toast Notification को लागि State
+  const [toast, setToast] = useState({
+    isVisible: false, message: '', type: 'success'
   });
 
   const showModal = (type, title, message, whatsappUrl = '') => {
     setAppModal({ isOpen: true, type, title, message, whatsappUrl });
   };
 
+  // 🌟 NAYA: Toast देखाउने फङ्सन
+  const showToast = (message, type = 'success') => {
+    setToast({ isVisible: true, message, type });
+    // ३ सेकेन्डपछि आफैं हराउने
+    setTimeout(() => {
+      setToast({ isVisible: false, message: '', type: 'success' });
+    }, 3000);
+  };
+
   useEffect(() => {
     const storedUser = localStorage.getItem('sk_user');
-    
-    // यदि भ्यालु छ, तर "undefined" वा "null" जस्ता बिग्रिएका शब्द छैनन् भने मात्र Parse गर्ने
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
       try {
         const parsedUser = JSON.parse(storedUser);
@@ -33,7 +46,6 @@ export const CartProvider = ({ children }) => {
         localStorage.removeItem('sk_token');
       }
     } else {
-      // यदि "undefined" आएको छ भने त्यसलाई डिलिट गरिदिने
       localStorage.removeItem('sk_user');
     }
   }, []);
@@ -44,7 +56,7 @@ export const CartProvider = ({ children }) => {
       return;
     }
     if (!tier || Number(orderQty) <= 0) {
-      return showModal('warning', 'Invalid Quantity', 'कृपया ठिक मात्रामा Quantity हाल्नुहोस्!');
+      return showToast('कृपया ठिक मात्रामा Quantity हाल्नुहोस्!', 'error'); // Modal को सट्टा Toast
     }
 
     const unitPrice = tier.price / tier.measureQty;
@@ -78,8 +90,7 @@ export const CartProvider = ({ children }) => {
       }]);
     }
     
-    // ❌ NAYA FIX: यहाँ तल रहेको setIsCartOpen(true); लाई हटाइएको छ 
-    // ताकि Add to Cart गर्दा Cart Drawer आफै नखुलोस्।
+    // कार्ट नखुलोस् भनेर यो लाइन अघि नै हटाइसकेका छौँ
     // setIsCartOpen(true); 
   };
 
@@ -101,7 +112,7 @@ export const CartProvider = ({ children }) => {
     setCurrentUser(null);
     setCart([]);
     setIsCartOpen(false);
-    showModal('success', 'Logged Out', 'तपाईं सफलतापूर्वक बाहिर निस्कनुभयो।');
+    showToast('तपाईं सफलतापूर्वक बाहिर निस्कनुभयो।'); // Modal को सट्टा Toast
   };
 
   const totalAmount = cart.reduce((sum, item) => sum + item.finalPrice, 0).toFixed(2);
@@ -127,14 +138,29 @@ export const CartProvider = ({ children }) => {
     <CartContext.Provider value={{
       cart, setCart, isCartOpen, setIsCartOpen, currentUser, setCurrentUser,
       addToCart, handleCartQtyChange, removeItem, totalAmount, totalItems, handleLogout, showModal,
-      handleCartTierChange 
+      handleCartTierChange, showToast // 🌟 showToast लाई पनि पठाउने
     }}>
       {children}
       
-      {/* Universal App Modal */}
+      {/* 🌟 NAYA: Toast Notification UI (Top Right) */}
+      {toast.isVisible && (
+        <div className={`fixed top-5 right-5 z-[150] flex items-center gap-3 px-5 py-3 rounded-lg shadow-xl border animate-in slide-in-from-right duration-300 ${
+          toast.type === 'success' ? 'bg-white border-green-500 text-gray-800' : 'bg-red-50 border-red-500 text-red-800'
+        }`}>
+          {toast.type === 'success' ? (
+            <CheckCircle className="text-green-500" size={24} />
+          ) : (
+            <AlertCircle className="text-red-500" size={24} />
+          )}
+          <span className="font-bold text-sm">{toast.message}</span>
+        </div>
+      )}
+
+      {/* पुरानो Universal App Modal (अर्डर गर्दा मात्र प्रयोग गर्न) */}
       {appModal.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 relative text-center border border-gray-100">
+           {/* ... Modal को भित्री कोड जस्ताको तस्तै ... */}
+           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col items-center p-8 relative text-center border border-gray-100">
             <div className={`p-5 rounded-full mb-6 shadow-inner ${appModal.type === 'success' ? 'bg-green-100' : appModal.type === 'error' ? 'bg-red-100' : 'bg-yellow-100'}`}>
               {appModal.type === 'success' && <Download size={40} className="text-green-600 animate-bounce" />}
               {appModal.type === 'error' && <AlertCircle size={40} className="text-red-600" />}
