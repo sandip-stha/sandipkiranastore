@@ -1,8 +1,17 @@
+// CartDrawer.jsx
 import React, { useState, useRef } from 'react';
 import { ShoppingCart, X, Trash2, Store, Download, Loader2, CheckCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import html2canvas from 'html2canvas';
 import axios from 'axios';
+
+// 🌟 NAYA FIX: डुप्लिकेट Quantity हटाउने Helper Function
+const formatUnit = (unit, qty) => {
+  if (typeof unit === 'string' && unit.startsWith(qty + ' ')) {
+    return unit.replace(qty + ' ', '').trim();
+  }
+  return unit || '';
+};
 
 export default function CartDrawer() {
   const { 
@@ -11,33 +20,35 @@ export default function CartDrawer() {
     currentUser, showModal, setCart 
   } = useCart();
   
-  const [showInvoice, setShowInvoice] = useState(false);
+  const [showInvoice, useState] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const invoiceRef = useRef(null);
 
-  // तपाईंको Backend को लिङ्क (यही लिङ्कमा अर्डर जान्छ)
   const API_URL = 'https://kiranastore-luig.onrender.com'; 
 
   if (!isCartOpen && !showInvoice) return null;
 
-  // ==========================================
-  // १. अर्डर Database मा पठाउने फङ्सन
-  // ==========================================
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return showModal('warning', 'Cart Khali Cha!', 'कृपया अर्डर गर्न अगाडि Cart मा सामान थप्नुहोस्।');
     if (!currentUser) return showModal('error', 'Login Required', 'कृपया अर्डर गर्न पहिले Login गर्नुहोस्।');
 
     setIsProcessing(true);
     try {
+      // 🌟 NAYA FIX: Database मा पठाउनुअघि डुप्लिकेट नम्बर हटाउने 
+      const cleanedCart = cart.map(item => ({
+        ...item,
+        displayUnit: formatUnit(item.displayUnit, item.qty)
+      }));
+
       const response = await axios.post(`${API_URL}/api/orders`, {
         customer: currentUser,
-        items: cart,
+        items: cleanedCart, // Clean गरिएको डाटा पठाउने
         totalAmount: Number(totalAmount)
       });
       
       if (response.status === 201) {
         setIsCartOpen(false);
-        setShowInvoice(true); // अर्डर Database मा गएपछि मात्र Bill/Success देखाउने
+        setShowInvoice(true); 
       }
     } catch (error) {
       console.error("Order Error:", error);
@@ -47,14 +58,10 @@ export default function CartDrawer() {
     }
   };
 
-  // ==========================================
-  // २. बिल Download गर्ने र Cart खाली गर्ने
-  // ==========================================
   const downloadBill = async () => {
     if (!invoiceRef.current) return;
     try {
       const element = invoiceRef.current;
-
       const canvas = await html2canvas(element, { 
         scale: 2, 
         useCORS: true, 
@@ -86,7 +93,6 @@ export default function CartDrawer() {
 
         showModal('success', 'Bill Downloaded!', "तपाईंको बिल ग्यालरीमा सेभ भयो।");
         
-        // अर्डर सकेपछि र बिल डाउनलोड गरेपछि मात्र Cart खाली गर्ने
         setShowInvoice(false);
         setCart([]); 
       }, 'image/png');
@@ -95,7 +101,6 @@ export default function CartDrawer() {
     }
   };
 
-  // बिल नचाहिनेले सिधै बन्द गर्दा Cart खाली गर्ने
   const closeAndClearCart = () => {
     setShowInvoice(false);
     setCart([]);
@@ -105,19 +110,13 @@ export default function CartDrawer() {
 
   return (
     <>
-      {/* ========================================== */}
-      {/* CART DRAWER (तपाईंको पुरानो मनपर्ने डिजाइन) */}
-      {/* ========================================== */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[80] flex justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           
-          {/* बाहिर क्लिक गर्दा Cart बन्द हुने */}
           <div className="absolute inset-0" onClick={() => setIsCartOpen(false)}></div>
 
-          {/* Cart Box */}
           <div className="w-full md:w-[450px] bg-white h-full shadow-2xl relative flex flex-col animate-in slide-in-from-right duration-300">
             
-            {/* Cart Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-100 bg-white shadow-sm z-10">
               <h2 className="text-2xl font-black flex items-center gap-3 text-gray-800">
                 <ShoppingCart className="text-blue-600" size={28} /> Your Cart
@@ -127,7 +126,6 @@ export default function CartDrawer() {
               </button>
             </div>
 
-            {/* Cart Items (Scrollable) */}
             <div className="flex-1 overflow-y-auto p-4 md:p-5 bg-gray-50 hide-scrollbar">
               {cart.length === 0 ? (
                 <div className="text-center py-20 flex flex-col items-center justify-center h-full opacity-60">
@@ -145,7 +143,6 @@ export default function CartDrawer() {
                     return (
                       <div key={item.cartItemId} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative group">
                         
-                        {/* Delete Button */}
                         <button 
                           onClick={() => removeItem(item.cartItemId)} 
                           className="absolute top-3 right-3 text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-xl transition z-10"
@@ -153,7 +150,6 @@ export default function CartDrawer() {
                           <Trash2 size={18}/>
                         </button>
 
-                        {/* Top Row: Image & Details */}
                         <div className="flex items-start mb-3 pr-10">
                           <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 flex-shrink-0 overflow-hidden mr-4">
                             <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
@@ -166,7 +162,6 @@ export default function CartDrawer() {
                           </div>
                         </div>
 
-                        {/* Middle Row: Select Unit */}
                         {itemPricing.length > 0 && (
                           <div className="mb-4">
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Select Unit:</p>
@@ -191,10 +186,9 @@ export default function CartDrawer() {
                           </div>
                         )}
 
-                        {/* Bottom Row: Quantity Input */}
                         <div className="bg-yellow-50 p-3.5 rounded-xl border border-yellow-100 flex flex-row items-center justify-between gap-2">
                           <label className="font-bold text-gray-700 text-xs md:text-sm leading-tight">
-                            कति <span className="text-blue-700 font-black">{item.displayUnit || 'सामान'}</span> चाहियो?:
+                            कति <span className="text-blue-700 font-black">{formatUnit(item.displayUnit, item.qty) || 'सामान'}</span> चाहियो?:
                           </label>
                           
                           <div className="flex items-center gap-2 bg-white p-1 rounded-lg border border-gray-200 shadow-sm w-fit shrink-0">
@@ -207,8 +201,9 @@ export default function CartDrawer() {
                               className="w-12 md:w-16 font-black text-lg md:text-xl text-center outline-none bg-transparent py-0.5 text-gray-800" 
                             />
                             <div className="w-[1px] h-6 bg-gray-200"></div>
+                            {/* 🌟 NAYA FIX: formatUnit(item.displayUnit, item.qty) */}
                             <span className="font-black text-gray-400 text-[10px] md:text-xs uppercase pr-2 pl-1 truncate max-w-[50px]">
-                              {item.displayUnit}
+                              {formatUnit(item.displayUnit, item.qty)}
                             </span>
                           </div>
                         </div>
@@ -220,7 +215,6 @@ export default function CartDrawer() {
               )}
             </div>
 
-            {/* Cart Footer (Total & Checkout) */}
             {cart.length > 0 && (
               <div className="p-6 bg-white border-t border-gray-200 shadow-[0_-15px_30px_rgba(0,0,0,0.04)] z-10">
                 <div className="flex justify-between items-end mb-5 px-2">
@@ -228,7 +222,6 @@ export default function CartDrawer() {
                   <span className="text-3xl font-black text-blue-700">Rs {totalAmount}</span>
                 </div>
                 
-                {/* 🚀 नयाँ Place Order Button */}
                 <button 
                   onClick={handlePlaceOrder} 
                   disabled={isProcessing}
@@ -242,14 +235,10 @@ export default function CartDrawer() {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* ORDER SUCCESS & INVOICE MODAL */}
-      {/* ========================================== */}
       {showInvoice && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-gray-100 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
             
-            {/* Success Header */}
             <div className="bg-green-500 px-6 py-6 text-center text-white z-10 shadow-sm relative">
               <button onClick={closeAndClearCart} className="absolute top-4 right-4 bg-green-600 p-2 rounded-full hover:bg-green-700 transition"><X size={20} /></button>
               <CheckCircle size={50} className="mx-auto mb-2 text-white animate-bounce" />
@@ -257,7 +246,6 @@ export default function CartDrawer() {
               <p className="text-green-100 text-sm mt-1 font-medium">तपाईंको अर्डर हामीलाई प्राप्त भयो। छिट्टै डेलिभरी हुनेछ।</p>
             </div>
 
-            {/* Bill Preview */}
             <div className="p-6 overflow-y-auto flex-1 flex justify-center bg-gray-100 hide-scrollbar">
               <div ref={invoiceRef} id='print-invoice' className="bg-white p-8 shadow-md w-full max-w-md mx-auto relative rounded-sm" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
                 <div className="absolute top-4 right-4 text-right text-xs text-gray-500 font-bold">Billed To:<br/><span className="text-gray-800 text-sm">{currentUser?.name}</span></div>
@@ -278,7 +266,8 @@ export default function CartDrawer() {
                   <tbody>
                     {cart.map((item, idx) => (
                       <tr key={idx} className="border-b border-gray-200 text-sm font-bold text-gray-700">
-                        <td className="py-3">{item.name} <br/><span className="text-xs text-gray-500 font-normal">{item.qty} {item.displayUnit}</span></td>
+                        {/* 🌟 NAYA FIX: Invoice मा पनि formatUnit राखिएको छ */}
+                        <td className="py-3">{item.name} <br/><span className="text-xs text-gray-500 font-normal">{item.qty} {formatUnit(item.displayUnit, item.qty)}</span></td>
                         <td className="py-3 text-right">Rs {item.finalPrice?.toFixed(2) || 0}</td>
                       </tr>
                     ))}
@@ -288,7 +277,6 @@ export default function CartDrawer() {
               </div>
             </div>
 
-            {/* Bottom Actions */}
             <div className="bg-white p-5 border-t flex flex-col gap-3 shadow-[0_-10px_20px_rgba(0,0,0,0.03)] text-center">
               <p className="text-gray-600 font-bold text-sm">Do you want to save this bill?</p>
               <div className="flex gap-3">

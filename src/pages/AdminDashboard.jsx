@@ -1,6 +1,6 @@
 // AdminDashboard.jsx
 import axios from 'axios';
-import imageCompression from 'browser-image-compression'; // 🌟 NAYA: Image Compress garna
+import imageCompression from 'browser-image-compression'; 
 import {
   Bell,
   CheckCircle,
@@ -17,28 +17,30 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-// Update this to your actual deployed backend URL
 const API_URL = 'https://kiranastore-luig.onrender.com'; 
 
-// Dropdown Options for Measurement Units
 const MEASURE_UNITS = ['Kg', 'Gram', 'Ltr', 'ml', 'Bora', 'Packet', 'Pouch', 'Piece', 'Box', 'Doz'];
+
+// 🌟 NAYA FIX: डुप्लिकेट Quantity हटाउने Helper Function
+const formatUnit = (unit, qty) => {
+  if (typeof unit === 'string' && unit.startsWith(qty + ' ')) {
+    return unit.replace(qty + ' ', '').trim();
+  }
+  return unit || '';
+};
 
 export default function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [activeTab, setActiveTab] = useState('orders'); // Default to orders now
+  const [activeTab, setActiveTab] = useState('orders'); 
   
-  // Login State
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
 
-  // Data States
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]); // Orders State
+  const [orders, setOrders] = useState([]); 
   
-  // Category Form State
   const [catForm, setCatForm] = useState({ name: '', isEditing: false, editId: null });
   
-  // Product Form State
   const [productForm, setProductForm] = useState({ 
     name: '', category: '', description: '', 
     pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }], 
@@ -49,7 +51,6 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
 
-  // Helper: Toast
   const showToast = (message, type = 'success') => {
     setToast({ isVisible: true, message, type });
     setTimeout(() => setToast({ isVisible: false, message: '', type: 'success' }), 3000);
@@ -89,15 +90,11 @@ export default function AdminDashboard() {
       setIsLoggedIn(true);
       fetchData();
       
-      // Auto refresh orders every 30 seconds
       const interval = setInterval(fetchOrders, 30000); 
       return () => clearInterval(interval);
     }
   }, []);
 
-  // ==========================================
-  // 🔐 AUTH FUNCTIONS
-  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -120,9 +117,6 @@ export default function AdminDashboard() {
     setLoginForm({ username: '', password: '' });
   };
 
-  // ==========================================
-  // 🛍️ ORDER FUNCTIONS
-  // ==========================================
   const updateOrderStatus = async (id, status) => {
     try {
       const token = localStorage.getItem('adminToken');
@@ -146,9 +140,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ==========================================
-  // 📁 CATEGORY FUNCTIONS
-  // ==========================================
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     if (!catForm.name.trim()) return showToast("Category name chaaiyo!", "error");
@@ -191,9 +182,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ==========================================
-  // 📦 PRODUCT FUNCTIONS
-  // ==========================================
   const addPriceField = () => {
     setProductForm({ ...productForm, pricing: [...productForm.pricing, { measureQty: '', measureUnit: 'Kg', price: '' }] });
   };
@@ -209,29 +197,20 @@ export default function AdminDashboard() {
     setProductForm({ ...productForm, pricing: newPricing });
   };
 
-  // 🌟 NAYA: Image Compress Garne Logic (Size reduce to < 100KB)
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Dekhauna ko lagi turuntai purano/thulo image ko preview set garne
       setImagePreview(URL.createObjectURL(file)); 
-
       try {
-        setIsLoading(true); // Compression hudai chha vanera loading dekhauna
-        
+        setIsLoading(true); 
         const options = {
-          maxSizeMB: 0.1, // 0.1 MB vaneko 100KB ho
-          maxWidthOrHeight: 800, // Image ko max width 800px ma jharne
+          maxSizeMB: 0.1, 
+          maxWidthOrHeight: 800, 
           useWebWorker: true,
-          fileType: 'image/jpeg' // JPEG format ma convert garne
+          fileType: 'image/jpeg' 
         };
-
         const compressedFile = await imageCompression(file, options);
-        
-        // Compress vayo, aba form state ma save garne
         setProductForm({ ...productForm, image: compressedFile });
-        
-        // Update the preview with the compressed image (optional)
         setImagePreview(URL.createObjectURL(compressedFile));
       } catch (error) {
         console.error("Error compressing image:", error);
@@ -264,7 +243,6 @@ export default function AdminDashboard() {
     formData.append('description', productForm.description);
     formData.append('pricing', JSON.stringify(validPricing));
     
-    // File attach garchha FormData ma
     if (productForm.image instanceof File || productForm.image instanceof Blob) {
       formData.append('image', productForm.image);
     }
@@ -324,7 +302,6 @@ export default function AdminDashboard() {
 
   const pendingOrdersCount = orders.filter(o => o.status === 'Pending').length;
 
-  // --------- LOGIN SCREEN ---------
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -350,7 +327,6 @@ export default function AdminDashboard() {
     );
   }
 
-  // --------- DASHBOARD SCREEN ---------
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans relative overflow-hidden">
       {toast.isVisible && (
@@ -406,7 +382,6 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          {/* ============================== ORDERS TAB ============================== */}
           {activeTab === 'orders' && (
             <div className="space-y-6">
               {orders.length === 0 ? (
@@ -445,7 +420,8 @@ export default function AdminDashboard() {
                                 <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />
                                 <div>
                                   <p className="font-bold text-gray-800 text-sm">{item.name}</p>
-                                  <p className="text-xs text-gray-500 font-bold">{item.qty} {item.displayUnit}</p>
+                                  {/* 🌟 NAYA FIX: formatUnit(item.displayUnit, item.qty) */}
+                                  <p className="text-xs text-gray-500 font-bold">{item.qty} {formatUnit(item.displayUnit, item.qty)}</p>
                                 </div>
                               </div>
                               <span className="font-black text-gray-800">Rs {item.finalPrice}</span>
