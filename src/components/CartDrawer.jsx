@@ -20,7 +20,7 @@ export default function CartDrawer() {
     currentUser, showModal, setCart 
   } = useCart();
   
-  const [showInvoice, useState] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const invoiceRef = useRef(null);
 
