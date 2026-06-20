@@ -4,7 +4,8 @@ import { X, ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 export default function ProductModal({ product, onClose }) {
-  const { addToCart } = useCart();
+  // 🌟 NAYA: useCart बाट showModal पनि ल्यायौं
+  const { addToCart, showModal } = useCart();
   const [selectedTier, setSelectedTier] = useState(null);
   const [orderQty, setOrderQty] = useState(1);
 
@@ -22,6 +23,12 @@ export default function ProductModal({ product, onClose }) {
 
   const handleAdd = () => {
     addToCart(product, selectedTier, orderQty);
+    
+    // 🌟 NAYA: सामान थपिएपछि Notification देखाउने तर Cart नखोल्ने
+    if (showModal) {
+      showModal('success', 'Cart मा थपियो!', `${product.name} सफलतापुर्वक Cart मा राखियो।`);
+    }
+    
     onClose();
   };
 

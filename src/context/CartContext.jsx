@@ -1,3 +1,4 @@
+// src/context/CartContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download, AlertCircle, Info, Share2 } from 'lucide-react';
@@ -18,7 +19,7 @@ export const CartProvider = ({ children }) => {
     setAppModal({ isOpen: true, type, title, message, whatsappUrl });
   };
 
- useEffect(() => {
+  useEffect(() => {
     const storedUser = localStorage.getItem('sk_user');
     
     // यदि भ्यालु छ, तर "undefined" वा "null" जस्ता बिग्रिएका शब्द छैनन् भने मात्र Parse गर्ने
@@ -76,7 +77,10 @@ export const CartProvider = ({ children }) => {
         pricing: product.pricing 
       }]);
     }
-    setIsCartOpen(true);
+    
+    // ❌ NAYA FIX: यहाँ तल रहेको setIsCartOpen(true); लाई हटाइएको छ 
+    // ताकि Add to Cart गर्दा Cart Drawer आफै नखुलोस्।
+    // setIsCartOpen(true); 
   };
 
   const handleCartQtyChange = (cartItemId, newQty) => {
