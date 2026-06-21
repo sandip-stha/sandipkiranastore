@@ -47,11 +47,11 @@ export default function ProductModal({ product, onClose }) {
         </button>
 
         {/* Left Side: Product Image */}
-        <div className="md:w-1/2 bg-gray-50 relative min-h-[250px] md:min-h-full">
+        <div className="md:w-1/2 bg-white relative min-h-[250px] md:min-h-full">
           <img 
             src={product.image} 
             alt={product.name} 
-            className="absolute inset-0 w-full h-full object-cover" 
+            className="absolute inset-0 w-full h-full object-contain" 
           />
         </div>
 
@@ -60,12 +60,14 @@ export default function ProductModal({ product, onClose }) {
           
           {/* Scrollable Content Area */}
           <div className="p-6 md:p-8 pt-12 md:pt-12 overflow-y-auto flex-1 hide-scrollbar">
-            <span className="text-[10px] text-blue-600 font-black tracking-widest uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-md">
-              {product.category}
-            </span>
-            <h2 className="text-3xl font-black text-gray-800 mb-6 leading-tight">
-              {product.name}
-            </h2>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-blue-600 font-black tracking-widest uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-md">
+                {product.category}
+              </span>
+              <h2 className="text-3xl font-black text-gray-800 mb-6 leading-tight">
+                {product.name}
+              </h2>
+            </div>
             
             {/* Unit Selection Grid */}
             <div className="mb-6">

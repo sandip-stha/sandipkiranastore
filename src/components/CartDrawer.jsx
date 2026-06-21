@@ -1,6 +1,6 @@
 // CartDrawer.jsx
 import React, { useState, useRef } from 'react';
-import { ShoppingCart, X, Trash2, Store, Download, Loader2, CheckCircle } from 'lucide-react';
+import { ShoppingCart, X, Trash2, Store, Download, Loader2, CheckCircle, MessageSquare } from 'lucide-react'; // 🌟 MessageSquare icon थपिएको छ
 import { useCart } from '../context/CartContext';
 import html2canvas from 'html2canvas';
 import axios from 'axios';
@@ -22,6 +22,10 @@ export default function CartDrawer() {
   
   const [showInvoice, setShowInvoice] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // 🌟 NAYA: Remarks को लागि State
+  const [remarks, setRemarks] = useState(''); 
+  
   const invoiceRef = useRef(null);
 
   const API_URL = 'https://kiranastore-luig.onrender.com'; 
@@ -34,7 +38,6 @@ export default function CartDrawer() {
 
     setIsProcessing(true);
     try {
-      // 🌟 NAYA FIX: Database मा पठाउनुअघि डुप्लिकेट नम्बर हटाउने 
       const cleanedCart = cart.map(item => ({
         ...item,
         displayUnit: formatUnit(item.displayUnit, item.qty)
@@ -42,13 +45,15 @@ export default function CartDrawer() {
 
       const response = await axios.post(`${API_URL}/api/orders`, {
         customer: currentUser,
-        items: cleanedCart, // Clean गरिएको डाटा पठाउने
-        totalAmount: Number(totalAmount)
+        items: cleanedCart,
+        totalAmount: Number(totalAmount),
+        remarks: remarks // 🌟 NAYA: Backend मा remarks पठाइएको
       });
       
       if (response.status === 201) {
         setIsCartOpen(false);
         setShowInvoice(true); 
+        setRemarks(''); // अर्डर भइसकेपछि remarks खाली गर्ने
       }
     } catch (error) {
       console.error("Order Error:", error);
@@ -201,7 +206,6 @@ export default function CartDrawer() {
                               className="w-12 md:w-16 font-black text-lg md:text-xl text-center outline-none bg-transparent py-0.5 text-gray-800" 
                             />
                             <div className="w-[1px] h-6 bg-gray-200"></div>
-                            {/* 🌟 NAYA FIX: formatUnit(item.displayUnit, item.qty) */}
                             <span className="font-black text-gray-400 text-[10px] md:text-xs uppercase pr-2 pl-1 truncate max-w-[50px]">
                               {formatUnit(item.displayUnit, item.qty)}
                             </span>
@@ -216,16 +220,30 @@ export default function CartDrawer() {
             </div>
 
             {cart.length > 0 && (
-              <div className="p-6 bg-white border-t border-gray-200 shadow-[0_-15px_30px_rgba(0,0,0,0.04)] z-10">
-                <div className="flex justify-between items-end mb-5 px-2">
+              <div className="p-5 bg-white border-t border-gray-200 shadow-[0_-15px_30px_rgba(0,0,0,0.04)] z-10">
+                <div className="flex justify-between items-end mb-3 px-2">
                   <span className="text-gray-500 font-bold uppercase tracking-widest text-sm">Total Amount</span>
                   <span className="text-3xl font-black text-blue-700">Rs {totalAmount}</span>
                 </div>
                 
+                {/* 🌟 NAYA: Remarks Textarea (२ लाइनको) */}
+                <div className="mb-4 relative">
+                  <div className="absolute top-3 left-3 text-gray-400">
+                    <MessageSquare size={16} />
+                  </div>
+                  <textarea 
+                    rows="2"
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    placeholder="केही विशेष जानकारी वा नोट छ? (Remarks)"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none transition-all"
+                  />
+                </div>
+
                 <button 
                   onClick={handlePlaceOrder} 
                   disabled={isProcessing}
-                  className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 flex justify-center items-center gap-3 hover:-translate-y-1 active:scale-95"
+                  className="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 flex justify-center items-center gap-3 hover:-translate-y-1 active:scale-95 disabled:opacity-70 disabled:hover:translate-y-0"
                 >
                   {isProcessing ? <><Loader2 size={24} className="animate-spin" /> Processing Order...</> : 'Place Order Now'}
                 </button>
@@ -266,7 +284,6 @@ export default function CartDrawer() {
                   <tbody>
                     {cart.map((item, idx) => (
                       <tr key={idx} className="border-b border-gray-200 text-sm font-bold text-gray-700">
-                        {/* 🌟 NAYA FIX: Invoice मा पनि formatUnit राखिएको छ */}
                         <td className="py-3">{item.name} <br/><span className="text-xs text-gray-500 font-normal">{item.qty} {formatUnit(item.displayUnit, item.qty)}</span></td>
                         <td className="py-3 text-right">Rs {item.finalPrice?.toFixed(2) || 0}</td>
                       </tr>

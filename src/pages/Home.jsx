@@ -50,14 +50,24 @@ export default function Home() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
         {filteredProducts.map(product => {
-          const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A' };
+          const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A',measureQty:'N/A' };
           return (
             <div key={product._id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col group cursor-pointer" onClick={() => setSelectedProduct(product)}>
-              <div className="relative overflow-hidden bg-gray-100"><img src={product.image} alt={product.name} className="w-full h-40 md:h-48 object-cover group-hover:scale-110 transition-transform duration-500" /></div>
-              <div className="p-4 md:p-5 flex flex-col flex-1">
+              <div className="relative overflow-hidden bg-white">
                 <span className="text-[10px] text-blue-600 font-bold tracking-widest uppercase bg-blue-50 px-2 py-1 rounded w-max mb-2">{product.category}</span>
-                <h3 className="text-sm md:text-base font-bold text-gray-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
-                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between"><div className="text-lg md:text-xl font-black text-gray-900">Rs {defaultTier.price}</div><button className="bg-blue-600 text-white p-2 md:p-2.5 rounded-xl hover:bg-blue-700 transition-all"><Plus size={20} /></button></div>
+                <img src={product.image} alt={product.name} className="w-full h-40 md:h-48 object-contain group-hover:scale-110 transition-transform duration-500" />
+              </div>
+              <div className="border-t border-gray-100 p-4 md:p-5 flex flex-col flex-1">
+                <div className="flex flex-col items-center flex-1 ">
+                  
+                  <h3 className="text-xm md:text-base font-bold text-black-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
+                  <h6 className="text-xm md:text-base text-blue-800 leading-snug line-clamp-2">
+                    {defaultTier.measureQty} {defaultTier.measureUnit} : Rs {defaultTier.price}</h6>
+                </div>  
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <button className="w-full bg-blue-600 text-white p-2 md:p-2.5 rounded-xl font-black text-lg hover:bg-blue-700 transition-all flex items-center shadow-lg shadow-blue-500/30 justify-center gap-2 active:scale-95"><Plus size={20} />Oder Details</button>
+                  
+                  </div>
               </div>
             </div>
           );

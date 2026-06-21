@@ -64,7 +64,10 @@ export default function Shop() {
                 <div className="relative bg-gray-100 aspect-square overflow-hidden"><img src={product.image} alt={product.name} className="w-full h-full object-cover hover:scale-110 transition-transform duration-500" /></div>
                 <div className="p-4 flex flex-col flex-1">
                   <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1 block">{product.category}</span>
-                  <h3 className="text-sm md:text-base font-bold text-gray-800 leading-snug line-clamp-2 mb-2">{product.name}</h3>
+                  <div className="flex items-center justify-between">                  
+                    <h3 className="text-sm md:text-base font-bold text-gray-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
+                    <h6 className="text-xs md:text-base font-bold text-gray-800 leading-snug line-clamp-2">{defaultTier.measureQty}{defaultTier.measureUnit}</h6>
+                  </div>
                   <div className="mt-auto flex items-center justify-between">
                     <span className="text-lg font-black text-gray-900">Rs {defaultTier.price}</span>
                     <button className="bg-blue-50 text-blue-700 p-2 rounded-xl hover:bg-blue-600 hover:text-white transition-colors active:scale-95"><Plus size={20} /></button>
