@@ -436,6 +436,11 @@ export default function AdminDashboard() {
                           <div className="bg-yellow-50/50 p-4 rounded-2xl border border-yellow-100 mb-6">
                             <p className="font-bold text-gray-800 mb-1">📍 {order.customer?.address}</p>
                             <p className="text-sm text-gray-600 font-semibold">Landmark: <span className="text-blue-700">{order.customer?.landmark}</span></p>
+                            {order.remarks && (
+                                <p className="text-sm text-gray-600 font-semibold">
+                                  Remarks: <span className="text-blue-700">{order.remarks}</span>
+                                </p>
+                              )}
                             <p className="text-xs text-gray-400 mt-3 font-bold">Ordered At: {new Date(order.createdAt).toLocaleString()}</p>
                           </div>
                         </div>
