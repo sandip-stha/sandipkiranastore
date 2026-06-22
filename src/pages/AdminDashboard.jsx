@@ -1,4 +1,3 @@
-// AdminDashboard.jsx
 import axios from 'axios';
 import imageCompression from 'browser-image-compression'; 
 import {
@@ -8,12 +7,14 @@ import {
   Clock,
   Edit,
   FolderPlus,
-  LayoutDashboard, Lock,
+  LayoutDashboard, 
+  Lock,
   LogOut,
   Package,
   PlusCircle,
   ShoppingBag,
-  Trash2
+  Trash2,
+  MessageSquare // 🚨 गुनासोको लागि नयाँ आइकन
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -21,7 +22,7 @@ const API_URL = 'https://kiranastore-luig.onrender.com';
 
 const MEASURE_UNITS = ['Kg', 'Gram', 'Ltr', 'ml', 'Bora', 'Packet', 'Pouch', 'Piece', 'Box', 'Doz'];
 
-// 🌟 NAYA FIX: डुप्लिकेट Quantity हटाउने Helper Function
+// 🌟 डुप्लिकेट Quantity हटाउने Helper Function
 const formatUnit = (unit, qty) => {
   if (typeof unit === 'string' && unit.startsWith(qty + ' ')) {
     return unit.replace(qty + ' ', '').trim();
@@ -38,6 +39,7 @@ export default function AdminDashboard() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]); 
+  const [gunasos, setGunasos] = useState([]); // 🚨 गुनासोको State
   
   const [catForm, setCatForm] = useState({ name: '', isEditing: false, editId: null });
   
@@ -66,6 +68,17 @@ export default function AdminDashboard() {
     }
   };
 
+  // 🚨 गुनासो तान्ने फङ्सन
+  const fetchGunasos = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.get(`${API_URL}/api/admin/gunaso`, { headers: { Authorization: `Bearer ${token}` } });
+      setGunasos(res.data);
+    } catch (error) {
+      console.error("Gunaso fetch error:", error);
+    }
+  };
+
   const fetchData = async () => {
     try {
       const [catRes, prodRes] = await Promise.all([
@@ -79,6 +92,7 @@ export default function AdminDashboard() {
         setProductForm(prev => ({ ...prev, category: catRes.data[0].name }));
       }
       fetchOrders();
+      fetchGunasos(); // 🚨 डाटा आउँदा गुनासो पनि तान्ने
     } catch (error) {
       console.error("Data fetch error:", error);
     }
@@ -90,7 +104,10 @@ export default function AdminDashboard() {
       setIsLoggedIn(true);
       fetchData();
       
-      const interval = setInterval(fetchOrders, 30000); 
+      const interval = setInterval(() => {
+        fetchOrders();
+        fetchGunasos();
+      }, 30000); 
       return () => clearInterval(interval);
     }
   }, []);
@@ -137,6 +154,30 @@ export default function AdminDashboard() {
       fetchOrders();
     } catch (err) {
       showToast("Failed to delete order", "error");
+    }
+  };
+
+  // 🚨 गुनासोको Status अपडेट र Delete गर्ने
+  const updateGunasoStatus = async (id, status) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.put(`${API_URL}/api/admin/gunaso/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+      showToast(`Gunaso marked as ${status}!`, "success");
+      fetchGunasos();
+    } catch (err) {
+      showToast("Failed to update gunaso", "error");
+    }
+  };
+
+  const deleteGunaso = async (id) => {
+    if(!window.confirm("Are you sure? यो गुनासो सधैंको लागि डिलिट हुनेछ!")) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${API_URL}/api/admin/gunaso/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      showToast("Gunaso Deleted!", "success");
+      fetchGunasos();
+    } catch (err) {
+      showToast("Failed to delete gunaso", "error");
     }
   };
 
@@ -301,6 +342,7 @@ export default function AdminDashboard() {
   };
 
   const pendingOrdersCount = orders.filter(o => o.status === 'Pending').length;
+  const pendingGunasoCount = gunasos.filter(g => g.status === 'Pending').length; // 🚨 Pending Gunaso Count
 
   if (!isLoggedIn) {
     return (
@@ -355,6 +397,16 @@ export default function AdminDashboard() {
           <li onClick={() => setActiveTab('categories')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'categories' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
             <FolderPlus size={22} /> Manage Categories
           </li>
+          
+          {/* 🚨 Sidebar मा Gunaso थपियो */}
+          <li onClick={() => setActiveTab('gunaso')} className={`cursor-pointer p-4 rounded-xl flex items-center justify-between font-semibold transition ${activeTab === 'gunaso' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
+            <div className="flex items-center gap-3"><MessageSquare size={22} /> Gunaso (गुनासो)</div>
+            {pendingGunasoCount > 0 && (
+              <span className="bg-orange-500 text-white text-xs font-black px-2.5 py-1 rounded-full animate-pulse shadow-[0_0_10px_rgba(249,115,22,0.6)]">
+                {pendingGunasoCount} New
+              </span>
+            )}
+          </li>
         </ul>
         <div className="border-t border-gray-700 pt-6">
           <button onClick={handleLogout} className="w-full cursor-pointer p-4 rounded-xl text-red-400 hover:text-white hover:bg-red-500/20 flex items-center justify-center gap-2 font-bold transition">
@@ -369,19 +421,92 @@ export default function AdminDashboard() {
           
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-black text-gray-800">
-              {activeTab === 'orders' ? 'Order Details 🛍️' : activeTab === 'products' ? 'Manage Products 📦' : 'Manage Categories 📁'}
+              {activeTab === 'orders' ? 'Order Details 🛍️' : 
+               activeTab === 'products' ? 'Manage Products 📦' : 
+               activeTab === 'gunaso' ? 'Customer Gunaso 💬' : 'Manage Categories 📁'}
             </h1>
-            {activeTab === 'orders' && (
+            
+            {activeTab === 'orders' && pendingOrdersCount > 0 && (
                <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border flex items-center gap-3">
                  <div className="relative">
                    <Bell size={24} className="text-blue-600" />
-                   {pendingOrdersCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>}
+                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
                  </div>
                  <span className="font-bold text-gray-700">{pendingOrdersCount} Pending Orders</span>
                </div>
             )}
+            
+            {/* 🚨 Gunaso Tab मा हुँदा Gunaso को Notification देखाउने */}
+            {activeTab === 'gunaso' && pendingGunasoCount > 0 && (
+               <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border flex items-center gap-3">
+                 <div className="relative">
+                   <Bell size={24} className="text-orange-600" />
+                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-white"></span>
+                 </div>
+                 <span className="font-bold text-gray-700">{pendingGunasoCount} Pending Gunaso</span>
+               </div>
+            )}
           </div>
 
+          {/* ============================== GUNASO TAB (नयाँ थपिएको) ============================== */}
+          {activeTab === 'gunaso' && (
+            <div className="space-y-6">
+              {gunasos.length === 0 ? (
+                <div className="bg-white p-10 rounded-3xl border text-center text-gray-400 font-bold text-xl">
+                  अहिले सम्म कुनै गुनासो वा सुझाव आएको छैन।
+                </div>
+              ) : (
+                gunasos.map((g) => (
+                  <div key={g._id} className={`bg-white rounded-3xl shadow-sm border overflow-hidden transition-all ${g.status === 'Pending' ? 'border-l-4 border-l-orange-500' : 'border-l-4 border-l-green-500 opacity-80'}`}>
+                    
+                    <div className="bg-gray-50/80 p-5 md:p-6 border-b flex flex-col md:flex-row justify-between md:items-center gap-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-1">
+                          <h3 className="text-xl font-black text-gray-800">{g.name}</h3>
+                          <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 ${g.status === 'Pending' ? 'bg-orange-100 text-orange-700 border border-orange-200' : 'bg-green-100 text-green-700 border border-green-200'}`}>
+                            {g.status === 'Pending' ? <Clock size={14}/> : <CheckCircle size={14}/>} {g.status}
+                          </span>
+                        </div>
+                        <p className="text-gray-500 text-sm font-bold flex gap-3 mt-2">
+                          <span>📞 {g.phone}</span>
+                          <span className="hidden md:inline">|</span>
+                          <span>📍 {g.location}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 md:p-6 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                      <div className="flex-1 w-full">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Message</p>
+                        <p className="text-gray-800 font-medium bg-gray-50 p-4 rounded-xl border border-gray-200 italic leading-relaxed text-lg">
+                          "{g.complaint}"
+                        </p>
+                        <p className="text-xs text-gray-400 mt-3 font-bold">Received At: {new Date(g.createdAt).toLocaleString()}</p>
+                      </div>
+                      
+                      <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0">
+                        {g.status === 'Pending' ? (
+                          <button onClick={() => updateGunasoStatus(g._id, 'Resolved')} className="flex-1 md:flex-none bg-green-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-md">
+                            <CheckCircle2 size={18} /> Mark Resolved
+                          </button>
+                        ) : (
+                          <div className="flex-1 md:flex-none bg-gray-100 text-green-600 px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 border border-green-200">
+                            <CheckCircle size={18} /> Resolved
+                          </div>
+                        )}
+                        <button onClick={() => deleteGunaso(g._id)} className="bg-red-50 text-red-500 px-4 py-3 rounded-xl hover:bg-red-500 hover:text-white transition shadow-sm border border-red-100 flex items-center justify-center">
+                          <Trash2 size={20} />
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* ============================== ORDER TAB ============================== */}
           {activeTab === 'orders' && (
             <div className="space-y-6">
               {orders.length === 0 ? (
@@ -420,7 +545,6 @@ export default function AdminDashboard() {
                                 <img src={item.image} alt={item.name} className="w-10 h-10 rounded-lg object-cover" />
                                 <div>
                                   <p className="font-bold text-gray-800 text-sm">{item.name}</p>
-                                  {/* 🌟 NAYA FIX: formatUnit(item.displayUnit, item.qty) */}
                                   <p className="text-xs text-gray-500 font-bold">{item.qty} {formatUnit(item.displayUnit, item.qty)}</p>
                                 </div>
                               </div>
