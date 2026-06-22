@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 
 const API_URL = 'https://kiranastore-luig.onrender.com'; 
 
-const MEASURE_UNITS = ['Kg', 'Gram', 'Ltr', 'ml', 'Bora', 'Packet', 'Pouch', 'Piece', 'Box', 'Doz', 'Bottle'];
+const MEASURE_UNITS = ['Kg', 'Gram', 'Ltr', 'ml', 'Bora', 'Packet', 'Pouch', 'Piece', 'Box', 'Doz', 'Bottle', 'Jar'];
 
 // 🌟 डुप्लिकेट Quantity हटाउने Helper Function
 const formatUnit = (unit, qty) => {
