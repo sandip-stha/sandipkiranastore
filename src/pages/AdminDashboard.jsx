@@ -109,7 +109,8 @@ export default function AdminDashboard() {
         setProductForm(prev => ({ ...prev, category: catRes.data[0].name }));
       }
       fetchOrders();
-      fetchGunasos(); // 🚨 डाटा आउँदा गुनासो पनि तान्ने
+      fetchGunasos(); 
+      fetchUsers(); // 🚨 यो लाइन छुटेको थियो, यहाँ थप्नुहोस्!
     } catch (error) {
       console.error("Data fetch error:", error);
     }
