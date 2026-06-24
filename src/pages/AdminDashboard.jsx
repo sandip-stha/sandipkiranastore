@@ -14,7 +14,9 @@ import {
   PlusCircle,
   ShoppingBag,
   Trash2,
-  MessageSquare // 🚨 गुनासोको लागि नयाँ आइकन
+  MessageSquare,
+  Users, 
+  Save 
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
@@ -39,7 +41,9 @@ export default function AdminDashboard() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]); 
-  const [gunasos, setGunasos] = useState([]); // 🚨 गुनासोको State
+  const [gunasos, setGunasos] = useState([]); // 
+  const [users, setUsers] = useState([]); // 
+
   
   const [catForm, setCatForm] = useState({ name: '', isEditing: false, editId: null });
   
@@ -76,6 +80,15 @@ export default function AdminDashboard() {
       setGunasos(res.data);
     } catch (error) {
       console.error("Gunaso fetch error:", error);
+    }
+  };
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await axios.get(`${API_URL}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } });
+      setUsers(res.data);
+    } catch (error) {
+      console.error("Users fetch error:", error);
     }
   };
 
@@ -341,6 +354,35 @@ export default function AdminDashboard() {
     }
   };
 
+  // 🚨 नयाँ: Customer Delete गर्ने
+  const deleteUser = async (id) => {
+    if(!window.confirm("Are you sure? यो ग्राहकको सम्पूर्ण डाटा सधैंको लागि डिलिट हुनेछ!")) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.delete(`${API_URL}/api/admin/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      showToast("Customer Deleted!", "success");
+      fetchUsers();
+    } catch (err) {
+      showToast("Failed to delete customer", "error");
+    }
+  };
+
+  // 🚨 नयाँ: Customer को Remarks (टिप्पणी) Update गर्ने
+  const updateRemark = async (id, remark) => {
+    try {
+      const token = localStorage.getItem('adminToken');
+      await axios.put(`${API_URL}/api/admin/users/${id}/remark`, { adminRemark: remark }, { headers: { Authorization: `Bearer ${token}` } });
+      showToast("Customer Remarks Saved!", "success");
+      fetchUsers();
+    } catch (err) {
+      showToast("Failed to save remarks", "error");
+    }
+  };
+
+  const handleRemarkChange = (id, value) => {
+    setUsers(users.map(u => u._id === id ? { ...u, adminRemark: value } : u));
+  };
+
   const pendingOrdersCount = orders.filter(o => o.status === 'Pending').length;
   const pendingGunasoCount = gunasos.filter(g => g.status === 'Pending').length; // 🚨 Pending Gunaso Count
 
@@ -406,6 +448,9 @@ export default function AdminDashboard() {
                 {pendingGunasoCount} New
               </span>
             )}
+          </li>
+          <li onClick={() => setActiveTab('users')} className={`cursor-pointer p-4 rounded-xl flex items-center justify-between font-semibold transition ${activeTab === 'users' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
+            <div className="flex items-center gap-3"><Users size={22} /> Customers List</div>
           </li>
         </ul>
         <div className="border-t border-gray-700 pt-6">
@@ -774,6 +819,65 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* ============================== CUSTOMERS (USERS) TAB ============================== */}
+          {activeTab === 'users' && (
+            <div className="grid md:grid-cols-2 gap-6">
+              {users.length === 0 ? (
+                <div className="col-span-2 bg-white p-10 rounded-3xl border text-center text-gray-400 font-bold text-xl">
+                  अहिले सम्म कुनै ग्राहक दर्ता भएका छैनन्।
+                </div>
+              ) : (
+                users.map((user) => (
+                  <div key={user._id} className="bg-white rounded-3xl shadow-sm border p-6 flex flex-col gap-5 relative overflow-hidden transition-all hover:shadow-md">
+                    
+                    {/* User Info & Delete */}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-2xl font-black text-gray-800 mb-1">{user.name}</h3>
+                        <p className="text-gray-500 font-bold text-sm">📞 {user.phone}</p>
+                        <p className="text-gray-500 font-semibold text-sm">📧 {user.email}</p>
+                      </div>
+                      <button onClick={() => deleteUser(user._id)} className="bg-red-50 text-red-500 p-3 rounded-xl hover:bg-red-500 hover:text-white transition shadow-sm border border-red-100">
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+
+                    {/* Address Section */}
+                    <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                      <p className="font-bold text-gray-800 mb-1">📍 {user.address}</p>
+                      <p className="text-sm text-gray-600 font-semibold">
+                        Landmark: <span className="text-blue-700">{user.landmark}</span>
+                      </p>
+                    </div>
+
+                    {/* Admin Remarks Section */}
+                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200">
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 block">
+                        Admin Remarks (चिन्न सजिलोको लागि)
+                      </label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={user.adminRemark || ''} 
+                          onChange={(e) => handleRemarkChange(user._id, e.target.value)}
+                          placeholder="e.g. उधारो लग्ने, सधैं आउने ग्राहक..." 
+                          className="flex-1 p-3 border border-gray-300 rounded-xl bg-white text-sm focus:border-blue-500 outline-none font-medium"
+                        />
+                        <button 
+                          onClick={() => updateRemark(user._id, user.adminRemark)} 
+                          className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold hover:bg-blue-700 transition"
+                        >
+                          <Save size={18} /> Save
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
