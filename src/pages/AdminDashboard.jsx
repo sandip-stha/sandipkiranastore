@@ -124,6 +124,7 @@ export default function AdminDashboard() {
       const interval = setInterval(() => {
         fetchOrders();
         fetchGunasos();
+        fetchUsers();
       }, 30000); 
       return () => clearInterval(interval);
     }
@@ -500,8 +501,9 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-black text-gray-800">
               {activeTab === 'orders' ? 'Order Details 🛍️' : 
-               activeTab === 'products' ? 'Manage Products 📦' : 
-               activeTab === 'gunaso' ? 'Customer Gunaso 💬' : 'Manage Categories 📁'}
+              activeTab === 'products' ? 'Manage Products 📦' : 
+              activeTab === 'gunaso' ? 'Customer Gunaso 💬' : 
+              activeTab === 'users' ? 'Registered Customers 👥' : 'Manage Categories 📁'}
             </h1>
             
             {activeTab === 'orders' && pendingOrdersCount > 0 && (
