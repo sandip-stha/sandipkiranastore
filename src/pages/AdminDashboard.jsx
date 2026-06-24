@@ -1,3 +1,4 @@
+// AdminDashboard.jsx
 import axios from 'axios';
 import imageCompression from 'browser-image-compression'; 
 import {
@@ -45,7 +46,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState([]); // 
 
   const [userForm, setUserForm] = useState({ 
-    name: '', phone: '', email: '', address: '', landmark: '', isEditing: false, editId: null 
+    name: '', phone: '', email: '', address: '', landmark: '', adminRemark: '', isEditing: false, editId: null 
   });
 
   
@@ -378,9 +379,10 @@ export default function AdminDashboard() {
     setUserForm({
       name: user.name, phone: user.phone, email: user.email, 
       address: user.address, landmark: user.landmark, 
+      adminRemark: user.adminRemark || '', // यहाँ थपियो
       isEditing: true, editId: user._id
     });
-    window.scrollTo(0, 0); // फर्म भर्न माथि स्क्रोल गर्ने
+    window.scrollTo(0, 0); 
   };
 
   // Edit गरेको डाटा सेभ गर्ने
@@ -556,16 +558,32 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="p-5 md:p-6 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                    <div className="p-5 md:p-6 flex flex-col md:flex-row gap-6 justify-between items-start">
                       <div className="flex-1 w-full">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Message</p>
                         <p className="text-gray-800 font-medium bg-gray-50 p-4 rounded-xl border border-gray-200 italic leading-relaxed text-lg">
                           "{g.complaint}"
                         </p>
-                        <p className="text-xs text-gray-400 mt-3 font-bold">Received At: {new Date(g.createdAt).toLocaleString()}</p>
+
+                        {/* 🚨 नयाँ: यदि फोटो छ भने देखाउने */}
+                        {g.image && (
+                          <div className="mt-4">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Attached Image</p>
+                            <a href={g.image} target="_blank" rel="noreferrer">
+                              <img 
+                                src={g.image} 
+                                alt="Gunaso Attachment" 
+                                className="w-full md:w-64 h-48 object-cover rounded-xl border border-gray-200 shadow-sm hover:opacity-90 transition cursor-pointer" 
+                              />
+                            </a>
+                            <p className="text-xs text-gray-400 mt-1">Click image to view full size</p>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-gray-400 mt-4 font-bold">Received At: {new Date(g.createdAt).toLocaleString()}</p>
                       </div>
                       
-                      <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0">
+                      <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0 self-end md:self-auto">
                         {g.status === 'Pending' ? (
                           <button onClick={() => updateGunasoStatus(g._id, 'Resolved')} className="flex-1 md:flex-none bg-green-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-md">
                             <CheckCircle2 size={18} /> Mark Resolved
@@ -859,7 +877,6 @@ export default function AdminDashboard() {
           )}
 
           {/* ============================== CUSTOMERS (USERS) TAB ============================== */}
-          {/* ============================== CUSTOMERS (USERS) TAB ============================== */}
           {activeTab === 'users' && (
             <div className="space-y-8">
               
@@ -888,11 +905,18 @@ export default function AdminDashboard() {
                       <label className="block text-gray-600 font-semibold mb-2">Full Address</label>
                       <input type="text" value={userForm.address} onChange={(e) => setUserForm({...userForm, address: e.target.value})} className="w-full p-4 border rounded-xl" required />
                     </div>
+                    
+                    {/* 🚨 नयाँ: Edit फर्म भित्रै Remarks थपियो */}
+                    <div className="md:col-span-2 bg-gray-50 p-4 rounded-xl border">
+                      <label className="block text-gray-700 font-bold mb-2">Admin Remarks (चिन्न सजिलोको लागि)</label>
+                      <input type="text" value={userForm.adminRemark} onChange={(e) => setUserForm({...userForm, adminRemark: e.target.value})} className="w-full p-3 border rounded-xl bg-white" placeholder="e.g. उधारो लग्ने, सधैं आउने ग्राहक, भाइको साथी..." />
+                    </div>
+
                     <div className="md:col-span-2 flex gap-4 mt-2">
                       <button type="submit" disabled={isLoading} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700">
                         {isLoading ? 'Updating...' : 'Update Details'}
                       </button>
-                      <button type="button" onClick={() => setUserForm({ name: '', phone: '', email: '', address: '', landmark: '', isEditing: false, editId: null })} className="bg-gray-200 text-gray-800 py-4 px-8 rounded-xl font-bold hover:bg-gray-300">
+                      <button type="button" onClick={() => setUserForm({ name: '', phone: '', email: '', address: '', landmark: '', adminRemark: '', isEditing: false, editId: null })} className="bg-gray-200 text-gray-800 py-4 px-8 rounded-xl font-bold hover:bg-gray-300">
                         Cancel
                       </button>
                     </div>
@@ -910,53 +934,38 @@ export default function AdminDashboard() {
                   users.map((user) => (
                     <div key={user._id} className="bg-white rounded-3xl shadow-sm border p-6 flex flex-col gap-5 relative overflow-hidden transition-all hover:shadow-md">
                       
-                      {/* User Info & Actions */}
                       <div className="flex justify-between items-start">
                         <div>
                           <h3 className="text-2xl font-black text-gray-800 mb-1">{user.name}</h3>
                           <p className="text-gray-500 font-bold text-sm">📞 {user.phone} | 📧 {user.email}</p>
                         </div>
                         <div className="flex gap-2">
-                          {/* 🚨 Edit Button थपियो */}
                           <button onClick={() => editUser(user)} className="bg-blue-50 text-blue-500 p-3 rounded-xl hover:bg-blue-500 hover:text-white transition shadow-sm border border-blue-100">
                             <Edit size={20} />
                           </button>
-                          {/* 🚨 Delete Button */}
                           <button onClick={() => deleteUser(user._id)} className="bg-red-50 text-red-500 p-3 rounded-xl hover:bg-red-500 hover:text-white transition shadow-sm border border-red-100">
                             <Trash2 size={20} />
                           </button>
                         </div>
                       </div>
 
-                      {/* Address Section */}
+                      {/* Address & Remarks Section */}
                       <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
                         <p className="font-bold text-gray-800 mb-1">📍 {user.address}</p>
-                        <p className="text-sm text-gray-600 font-semibold">
+                        <p className="text-sm text-gray-600 font-semibold mb-2">
                           Landmark: <span className="text-blue-700">{user.landmark}</span>
                         </p>
+                        
+                        {/* 🚨 Remarks भएमा मात्र देखिने */}
+                        {user.adminRemark && (
+                          <div className="mt-3 pt-3 border-t border-blue-200">
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Admin Remarks</p>
+                            <p className="text-sm font-bold text-gray-800 italic">" {user.adminRemark} "</p>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Admin Remarks Section */}
-                      <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 block">
-                          Admin Remarks (चिन्न सजिलोको लागि)
-                        </label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            value={user.adminRemark || ''} 
-                            onChange={(e) => handleRemarkChange(user._id, e.target.value)}
-                            placeholder="e.g. उधारो लग्ने, सधैं आउने..." 
-                            className="flex-1 p-3 border border-gray-300 rounded-xl bg-white text-sm focus:border-blue-500 outline-none font-medium"
-                          />
-                          <button 
-                            onClick={() => updateRemark(user._id, user.adminRemark)} 
-                            className="bg-gray-800 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold hover:bg-black transition"
-                          >
-                            <Save size={18} /> Save
-                          </button>
-                        </div>
-                      </div>
+                      {/* पहिलेको खाली input box वाला UI यहाँबाट हटाइयो! */}
 
                     </div>
                   ))
