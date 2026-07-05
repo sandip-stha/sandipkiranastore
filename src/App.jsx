@@ -10,7 +10,7 @@ import Footer from './components/Footer';
 // Pages
 import Home from './pages/Home';
 import Shop from './pages/Shop';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminDashboard from './pages/admin/AdminDashboard';
 import AuthPage from './pages/AuthPage';
 import Contact from './pages/Contact';
 
