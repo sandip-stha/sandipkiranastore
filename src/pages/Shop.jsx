@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Plus } from 'lucide-react';
+// Plus को सट्टा ShoppingCart आइकन राखिएको छ
+import { Search, SlidersHorizontal, ShoppingCart } from 'lucide-react';
 import axios from 'axios';
 import ProductModal from '../components/ProductModal';
 
@@ -28,6 +29,7 @@ export default function Shop() {
   return (
     <main className="max-w-7xl mx-auto w-full px-4 py-8 flex flex-col md:flex-row gap-8 flex-1">
       
+      {/* Sidebar Filter */}
       <aside className="w-full md:w-1/4 lg:w-1/5 shrink-0">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 md:sticky top-24">
           <div className="relative mb-6">
@@ -45,7 +47,9 @@ export default function Shop() {
         </div>
       </aside>
 
+      {/* Main Shop Area */}
       <div className="flex-1">
+        {/* Sort Bar */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 gap-4">
           <p className="text-gray-600 font-bold">Showing <span className="text-blue-700">{filteredProducts.length}</span> products</p>
           <div className="flex items-center gap-3">
@@ -56,28 +60,65 @@ export default function Shop() {
           </div>
         </div>
 
+        {/* Product Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {filteredProducts.map(product => {
-            const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A' };
+            const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A', measureQty: 'N/A' };
             return (
-              <div key={product._id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col cursor-pointer" onClick={() => setSelectedProduct(product)}>
-                <div className="relative bg-gray-100 aspect-square overflow-hidden"><img src={product.image} alt={product.name} className="w-full h-full object-cover hover:scale-110 transition-transform duration-500" /></div>
-                <div className="p-4 flex flex-col flex-1">
-                  <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider mb-1 block">{product.category}</span>
-                  <div className="flex items-center justify-between">                  
-                    <h3 className="text-sm md:text-base font-bold text-gray-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
-                    <h6 className="text-xs md:text-base font-bold text-gray-800 leading-snug line-clamp-2">{defaultTier.measureQty}{defaultTier.measureUnit}</h6>
+              <div 
+                key={product._id} 
+                className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-200 flex flex-col group cursor-pointer overflow-hidden" 
+                onClick={() => setSelectedProduct(product)}
+              >
+                {/* Image Section */}
+                <div className="relative bg-white pt-2 h-40 md:h-48">
+                  <img 
+                    src={product.image} 
+                    alt={product.name} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 rounded-t-2xl" 
+                  />
+                </div>
+
+                {/* Text & Button Section (हल्का निलो ब्याकग्राउन्ड) */}
+                <div className="bg-[#f2f7ff] p-4 flex flex-col flex-1 border-t border-blue-100/50 rounded-b-2xl">
+                  
+                  {/* Category Name */}
+                  <span className="text-[10px] md:text-xs text-blue-600 font-bold uppercase tracking-wide mb-1.5">
+                    {product.category}
+                  </span>
+                  
+                  {/* Product Name */}
+                  <h3 className="text-sm md:text-base font-bold text-gray-800 leading-tight mb-2 line-clamp-2">
+                    {product.name}
+                  </h3>
+                  
+                  {/* Price and Quantity */}
+                  <div className="flex items-baseline gap-1 mb-4">
+                    <span className="text-base md:text-lg font-black text-gray-900">
+                      Rs. {defaultTier.price}
+                    </span>
+                    <span className="text-xs md:text-sm text-gray-500 font-semibold">
+                      / {defaultTier.measureQty} {defaultTier.measureUnit}
+                    </span>
                   </div>
-                  <div className="mt-auto flex items-center justify-between">
-                    <span className="text-lg font-black text-gray-900">Rs {defaultTier.price}</span>
-                    <button className="bg-blue-50 text-blue-700 p-2 rounded-xl hover:bg-blue-600 hover:text-white transition-colors active:scale-95"><Plus size={20} /></button>
+                  
+                  {/* Space filler to keep button at the bottom */}
+                  <div className="mt-auto">
+                    {/* Order Now Button */}
+                    <button className="w-full bg-[#3b82f6] text-white py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-sm">
+                      <ShoppingCart size={18} />
+                      Order Now
+                    </button>
                   </div>
+                  
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+      
+      {/* Product Modal */}
       {selectedProduct && <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />}
     </main>
   );

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Search, ShoppingCart, ShieldCheck, Clock, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import ProductModal from '../components/ProductModal';
+import bgImage from '../assets/bg.JPG';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,46 +29,121 @@ export default function Home() {
   });
 
   return (
-    <main className="max-w-7xl mx-auto p-4 py-6 flex-1 w-full flex flex-col gap-8">
-      <div className="bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-800 rounded-3xl p-8 mb-4 shadow-2xl flex flex-col md:flex-row items-center justify-between overflow-hidden relative">
-        <div className="md:w-2/3 relative z-10">
-          <span className="bg-yellow-400 text-blue-900 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 inline-block">Free Local Delivery</span>
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-4 text-white leading-tight">ताजा किराना सामान, <br/><span className="text-yellow-300 mt-2 block">छिटो डेलिभरी 🧑‍🏍📦</span></h1>
-          <p className="text-lg text-blue-100 mb-8 max-w-md">चामल, दाल, तेल, ग्यास र हजुर को दैनिक आवस्यकता का सबै समान हरु सस्तो र सुलव मुल्य मा!</p>
-          <div className="relative w-full max-w-md bg-white rounded-xl shadow-lg flex items-center overflow-hidden border-2 border-transparent focus-within:border-yellow-400 transition-all">
-            <Search className="text-gray-400 ml-4" size={24} />
-            <input type="text" placeholder="K khojdai hunuhuncha?..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full py-4 px-4 text-gray-800 outline-none font-medium" />
+    <main className="max-w-7xl mx-auto p-4 py-6 flex-1 w-full flex flex-col gap-6">
+      
+      {/* ---------------- Compact & Beautiful Hero Section ---------------- */}
+      <div 
+          className="relative rounded-3xl overflow-hidden shadow-sm border border-gray-200 bg-white"
+          style={{
+            // import गरेको bgImage लाई यहाँ यसरी राख्ने
+            backgroundImage: `url(${bgImage})`, 
+            backgroundSize: 'contain', 
+            backgroundPosition: 'right center', 
+            backgroundRepeat: 'no-repeat'
+          }}
+        >
+        {/* लाइट ओभरले (Text प्रस्ट देखिनको लागि सेतो/निलो पारदर्शी तह) */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-transparent md:to-white/30"></div>
+
+        <div className="relative z-10 p-6 md:p-10 w-full md:w-3/4 lg:w-3/5">
+          
+          <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1.5 rounded-full mb-4 inline-flex items-center gap-1.5 border border-blue-200">
+            <ShieldCheck size={16} className="text-blue-600" />
+            १००% शुद्ध र गुणस्तरीय
+          </span>
+          
+          <h1 className="text-3xl md:text-4xl font-extrabold mb-3 text-gray-900 leading-tight">
+            तपाईंको भान्साको आवश्यकता,<br/>
+            <span className="text-blue-600">अब एउटै छानामुनि</span>
+          </h1>
+          
+          <p className="text-sm md:text-base text-gray-600 mb-6 font-medium max-w-lg">
+            चामल, दाल, तेलदेखि ग्याससम्म—दैनिक उपभोग्य सम्पूर्ण सामान घरमै बसी अर्डर गर्नुहोस्।
+          </p>
+          
+          {/* Compact Search Bar */}
+          <div className="flex items-center bg-white rounded-xl shadow-md border border-gray-200 p-1.5 focus-within:ring-2 focus-within:ring-blue-500 transition-all max-w-lg">
+            <Search className="text-gray-400 ml-3" size={20} />
+            <input 
+              type="text" 
+              placeholder="सामान खोज्नुहोस्..." 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="w-full py-2 px-3 text-gray-800 outline-none text-sm md:text-base bg-transparent" 
+            />
+            <button className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors whitespace-nowrap">
+              खोज्नुहोस्
+            </button>
           </div>
+          
+          <div className="flex items-center gap-5 mt-5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+              <Clock size={16} className="text-emerald-500" /> समयमै डेलिभरी
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+              <Sparkles size={16} className="text-yellow-500" /> सस्तो मूल्य
+            </div>
+          </div>
+          
         </div>
       </div>
 
-      <div className="mb-2 flex overflow-x-auto pb-4 gap-3 hide-scrollbar items-center">
-        <span className="font-bold text-gray-500 mr-2 uppercase tracking-wide text-sm hidden sm:block">Filter:</span>
+      {/* ---------------- Category Filter ---------------- */}
+      <div className="flex overflow-x-auto pb-2 gap-3 hide-scrollbar items-center">
+        <span className="font-bold text-gray-500 mr-2 uppercase tracking-wide text-xs hidden sm:block">Filter:</span>
         {categories.map(category => (
-          <button key={category} onClick={() => setSelectedCategory(category)} className={`whitespace-nowrap px-6 py-2.5 rounded-xl font-bold text-sm transition shadow-sm border ${selectedCategory === category ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'}`}>{category}</button>
+          <button 
+            key={category} 
+            onClick={() => setSelectedCategory(category)} 
+            className={`whitespace-nowrap px-5 py-2 rounded-xl font-bold text-sm transition shadow-sm border ${selectedCategory === category ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'}`}
+          >
+            {category}
+          </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      {/* ---------------- Products Grid ---------------- */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5 mt-2">
         {filteredProducts.map(product => {
-          const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A',measureQty:'N/A' };
+          const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A', measureQty: 'N/A' };
           return (
-            <div key={product._id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col group cursor-pointer" onClick={() => setSelectedProduct(product)}>
-              <div className="relative overflow-hidden bg-white">
-                <span className="text-[10px] text-blue-600 font-bold tracking-widest uppercase bg-blue-50 px-2 py-1 rounded w-max mb-2">{product.category}</span>
-                <img src={product.image} alt={product.name} className="w-full h-40 md:h-48 object-contain group-hover:scale-110 transition-transform duration-500" />
+            <div 
+              key={product._id} 
+              className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-200 flex flex-col group cursor-pointer overflow-hidden" 
+              onClick={() => setSelectedProduct(product)}
+            >
+              <div className="relative bg-white pt-2 h-40 md:h-44">
+                <img 
+                  src={product.image} 
+                  alt={product.name} 
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 rounded-t-2xl" 
+                />
               </div>
-              <div className="border-t border-gray-100 p-4 md:p-5 flex flex-col flex-1">
-                <div className="flex flex-col items-center flex-1 ">
-                  
-                  <h3 className="text-xm md:text-base font-bold text-black-800 flex-1 leading-snug line-clamp-2">{product.name}</h3>
-                  <h6 className="text-xm md:text-base text-blue-800 leading-snug line-clamp-2">
-                    {defaultTier.measureQty} {defaultTier.measureUnit} : Rs {defaultTier.price}</h6>
-                </div>  
-                <div className="mt-4 pt-3 border-t border-gray-100">
-                  <button className="w-full bg-blue-600 text-white p-2 md:p-2.5 rounded-xl font-black text-lg hover:bg-blue-700 transition-all flex items-center shadow-lg shadow-blue-500/30 justify-center gap-2 active:scale-95"><Plus size={20} />Oder Details</button>
-                  
-                  </div>
+
+              <div className="bg-[#f2f7ff] p-4 flex flex-col flex-1 border-t border-blue-100/50 rounded-b-2xl">
+                <span className="text-[10px] md:text-xs text-blue-600 font-bold uppercase tracking-wide mb-1.5">
+                  {product.category}
+                </span>
+                
+                <h3 className="text-sm md:text-base font-bold text-gray-800 leading-tight mb-2 line-clamp-2">
+                  {product.name}
+                </h3>
+                
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-base md:text-lg font-black text-gray-900">
+                    Rs. {defaultTier.price}
+                  </span>
+                  <span className="text-xs md:text-sm text-gray-500 font-semibold">
+                    / {defaultTier.measureQty} {defaultTier.measureUnit}
+                  </span>
+                </div>
+                
+                <div className="mt-auto">
+                  <button className="w-full bg-[#3b82f6] text-white py-2 md:py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-sm">
+                    <ShoppingCart size={16} />
+                    Order Now
+                  </button>
+                </div>
               </div>
             </div>
           );
