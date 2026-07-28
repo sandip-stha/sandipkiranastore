@@ -72,33 +72,31 @@ export default function AdminDashboard() {
   // 🌟 २. fetchData फङ्सनमा measure-units पनि तान्न (Fetch गर्न) थपिएको
   // 🌟 Safe fetchData: Measure units को API फेल भए पनि Products र Categories नरोकिने!
   const fetchData = async () => {
-    try {
-        // १. पहिले पुरानै Products र Categories तान्ने (यो कहिल्यै फेल हुँदैन)
-        const [catRes, prodRes] = await Promise.all([
-            axios.get(`${API_URL}/api/categories`),
-            axios.get(`${API_URL}/api/products`)
-        ]);
-        setCategories(catRes.data);
-        setProducts(prodRes.data);
+      try {
+          const [catRes, prodRes] = await Promise.all([
+              axios.get(`${API_URL}/api/categories`),
+              axios.get(`${API_URL}/api/products`)
+          ]);
+          setCategories(catRes.data);
+          setProducts(prodRes.data);
 
-        // २. त्यसपछि Measure Units तान्ने (छुट्टै try-catch मा राखेको ताकि यो फेल हुँदा पनि माथिको डाटा नहराओस्)
-        try {
-            const unitRes = await axios.get(`${API_URL}/api/measure-units`);
-            setMeasureUnits(unitRes.data);
-        } catch (unitErr) {
-            console.warn("⚠️ Measure Units को API अहिलेसम्म जोडिएको छैन वा सर्भरमा छैन:", unitErr.message);
-        }
+          // 🌟 सिधै Backend (Database) बाट Measure Units ल्याउने (कुनै डिफल्ट नराखेको)
+          try {
+              const unitRes = await axios.get(`${API_URL}/api/measure-units`);
+              setMeasureUnits(unitRes.data || []);
+          } catch (unitErr) {
+              console.error("⚠️ Measure Units API लोड हुन सकेन:", unitErr.message);
+              setMeasureUnits([]); // API नचले खाली राख्ने
+          }
 
-        // ३. बाँकी डाटाहरू तान्ने
-        fetchOrders();
-        fetchGunasos();
-        fetchUsers();
-        fetchDealers();
-    } catch (error) { 
-        console.error("Data fetch error:", error); 
-    }
-  };
-
+          fetchOrders();
+          fetchGunasos();
+          fetchUsers();
+          fetchDealers();
+      } catch (error) { 
+          console.error("Data fetch error:", error); 
+      }
+    };
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (token) {
