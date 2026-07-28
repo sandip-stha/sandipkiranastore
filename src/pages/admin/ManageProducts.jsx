@@ -3,22 +3,27 @@ import axios from 'axios';
 import imageCompression from 'browser-image-compression';
 import { PlusCircle, Edit, Trash2, Search, Filter } from 'lucide-react';
 
-const MEASURE_UNITS = ['Kg', 'Gram', 'Ltr', 'ml', 'Bora', 'Packet', 'Pouch', 'Piece', 'Box', 'Doz', 'Bottle', 'Jar'];
+// 🌟 MEASURE_UNITS manual array हटाइयो। अब यो props (measureUnits) बाट आउँछ।
+export default function ManageProducts({ products, categories, measureUnits = [], fetchData, API_URL, showToast }) {
+  
+  // 🌟 डिफल्ट युनिट सेट गर्दा backend बाट आएको पहिलो युनिट राख्ने, नभए 'Kg' राख्ने
+  const defaultUnit = measureUnits[0]?.name || 'Kg';
 
-export default function ManageProducts({ products, categories, fetchData, API_URL, showToast }) {
   const [productForm, setProductForm] = useState({
     name: '', category: categories[0]?.name || '', description: '',
-    pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }],
+    pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }],
     image: null, isEditing: false, editId: null
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Search ra Filter ko lagi naya states
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
 
-  const addPriceField = () => setProductForm({ ...productForm, pricing: [...productForm.pricing, { measureQty: '', measureUnit: 'Kg', price: '' }] });
+  const addPriceField = () => setProductForm({ 
+    ...productForm, 
+    pricing: [...productForm.pricing, { measureQty: '', measureUnit: defaultUnit, price: '' }] 
+  });
   
   const removePriceField = (index) => {
     const newPricing = productForm.pricing.filter((_, i) => i !== index);
@@ -85,9 +90,16 @@ export default function ManageProducts({ products, categories, fetchData, API_UR
   };
 
   const editProduct = (prod) => {
-    setProductForm({ name: prod.name, category: prod.category, description: prod.description, pricing: prod.pricing?.length ? prod.pricing : [{ measureQty: '', measureUnit: 'Kg', price: '' }], image: null, isEditing: true, editId: prod._id });
+    setProductForm({ 
+      name: prod.name, 
+      category: prod.category, 
+      description: prod.description, 
+      pricing: prod.pricing?.length ? prod.pricing : [{ measureQty: '', measureUnit: defaultUnit, price: '' }], 
+      image: null, 
+      isEditing: true, 
+      editId: prod._id 
+    });
     setImagePreview(prod.image);
-    // Mobile ma scroll garne, desktop ma pardaina side-by-side vako le
     if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -105,11 +117,10 @@ export default function ManageProducts({ products, categories, fetchData, API_UR
   };
 
   const resetForm = () => {
-    setProductForm({ name: '', category: categories[0]?.name || '', description: '', pricing: [{ measureQty: '', measureUnit: 'Kg', price: '' }], image: null, isEditing: false, editId: null });
+    setProductForm({ name: '', category: categories[0]?.name || '', description: '', pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }], image: null, isEditing: false, editId: null });
     setImagePreview(null);
   };
 
-  // Products filter garne logic
   const filteredProducts = products.filter(prod => {
     const matchSearch = prod.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchCategory = filterCategory === 'All' || prod.category === filterCategory;
@@ -117,7 +128,6 @@ export default function ManageProducts({ products, categories, fetchData, API_UR
   });
 
   return (
-    // lg:flex-row-reverse le form lai right side ma rakhcha
     <div className="flex flex-col lg:flex-row-reverse gap-6 items-start h-full">
       
       {/* ---------------- RIGHT SIDE: Form Section ---------------- */}
@@ -152,19 +162,30 @@ export default function ManageProducts({ products, categories, fetchData, API_UR
               <button type="button" onClick={addPriceField} className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><PlusCircle size={14} /> Add</button>
             </div>
             <div className="space-y-2">
-              {productForm.pricing.map((priceItem, index) => (
-                <div key={index} className="flex items-center gap-2 bg-white p-2.5 rounded-xl border shadow-sm">
-                  <input type="number" step="any" placeholder="Qty" value={priceItem.measureQty} onChange={(e) => handlePriceChange(index, 'measureQty', e.target.value)} className="w-16 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-sm" required />
-                  <select value={priceItem.measureUnit} onChange={(e) => handlePriceChange(index, 'measureUnit', e.target.value)} className="w-20 p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-center text-sm">
-                    {MEASURE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                  <span className="font-bold text-gray-400">=</span>
-                  <input type="number" placeholder="Price" value={priceItem.price} onChange={(e) => handlePriceChange(index, 'price', e.target.value)} className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-700 text-center text-sm" required />
-                  {productForm.pricing.length > 1 && (
-                    <button type="button" onClick={() => removePriceField(index)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
-                  )}
-                </div>
-              ))}
+              {productForm.pricing.map((priceItem, index) => {
+                // 🌟 पुरानो प्रोडक्टलाई असर नपरोस् भनेर Fallback Check: यदि पुरानो युनिट लिस्टबाट डिलिट भइसकेको रहेछ भने पनि त्यो Dropdown मा देखिनेछ
+                const isUnitInList = measureUnits.some(u => u.name === priceItem.measureUnit);
+                
+                return (
+                  <div key={index} className="flex items-center gap-2 bg-white p-2.5 rounded-xl border shadow-sm">
+                    <input type="number" step="any" placeholder="Qty" value={priceItem.measureQty} onChange={(e) => handlePriceChange(index, 'measureQty', e.target.value)} className="w-16 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-sm" required />
+                    
+                    <select value={priceItem.measureUnit} onChange={(e) => handlePriceChange(index, 'measureUnit', e.target.value)} className="w-24 p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-center text-sm">
+                      {/* यदि पुरानो युनिट डिलिट भएको छ भने त्यसलाई पनि अप्सनमा राख्ने ताकि डाटा नबिग्रियोस् */}
+                      {!isUnitInList && priceItem.measureUnit && (
+                        <option value={priceItem.measureUnit}>{priceItem.measureUnit} (Old)</option>
+                      )}
+                      {measureUnits.map(u => <option key={u._id || u.name} value={u.name}>{u.name}</option>)}
+                    </select>
+
+                    <span className="font-bold text-gray-400">=</span>
+                    <input type="number" placeholder="Price" value={priceItem.price} onChange={(e) => handlePriceChange(index, 'price', e.target.value)} className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-700 text-center text-sm" required />
+                    {productForm.pricing.length > 1 && (
+                      <button type="button" onClick={() => removePriceField(index)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -187,7 +208,6 @@ export default function ManageProducts({ products, categories, fetchData, API_UR
 
       {/* ---------------- LEFT SIDE: Inventory Table Section ---------------- */}
       <div className="w-full lg:w-7/12 bg-white rounded-3xl shadow-sm border flex flex-col max-h-[85vh]">
-        {/* Header, Search & Filter Box */}
         <div className="p-6 border-b bg-gray-50/50 rounded-t-3xl">
             <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center justify-between">
                 Product Inventory
@@ -195,35 +215,20 @@ export default function ManageProducts({ products, categories, fetchData, API_UR
             </h3>
             
             <div className="flex flex-col sm:flex-row gap-4">
-                {/* Search Input */}
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type="text" 
-                        placeholder="Search product name..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                    />
+                    <input type="text" placeholder="Search product name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                 </div>
-                {/* Category Filter */}
                 <div className="relative w-full sm:w-48">
                     <Filter className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <select 
-                        value={filterCategory} 
-                        onChange={(e) => setFilterCategory(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white text-sm"
-                    >
+                    <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none bg-white text-sm">
                         <option value="All">All Categories</option>
-                        {categories.map((cat) => (
-                            <option key={cat._id} value={cat.name}>{cat.name}</option>
-                        ))}
+                        {categories.map((cat) => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
                     </select>
                 </div>
             </div>
         </div>
 
-        {/* Scrollable Table Area */}
         <div className="overflow-y-auto flex-1 custom-scrollbar">
           <table className="w-full text-left border-collapse relative">
             <thead className="sticky top-0 bg-white shadow-sm z-10">
@@ -256,21 +261,13 @@ export default function ManageProducts({ products, categories, fetchData, API_UR
                   </td>
                   <td className="p-4 text-right align-middle">
                     <div className="flex justify-end gap-2">
-                        <button onClick={() => editProduct(prod)} className="text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition-colors bg-blue-50">
-                            <Edit size={18}/>
-                        </button>
-                        <button onClick={() => deleteProduct(prod._id)} className="text-red-600 hover:bg-red-100 p-2 rounded-lg transition-colors bg-red-50">
-                            <Trash2 size={18}/>
-                        </button>
+                        <button onClick={() => editProduct(prod)} className="text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition-colors bg-blue-50"><Edit size={18}/></button>
+                        <button onClick={() => deleteProduct(prod._id)} className="text-red-600 hover:bg-red-100 p-2 rounded-lg transition-colors bg-red-50"><Trash2 size={18}/></button>
                     </div>
                   </td>
                 </tr>
               )) : (
-                  <tr>
-                      <td colSpan="3" className="text-center p-8 text-gray-500">
-                          Product vetiyena. Kripaya search kura check garnuhos.
-                      </td>
-                  </tr>
+                  <tr><td colSpan="3" className="text-center p-8 text-gray-500">Product vetiyena. Kripaya search kura check garnuhos.</td></tr>
               )}
             </tbody>
           </table>

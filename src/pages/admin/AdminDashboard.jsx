@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Bell, LayoutDashboard, Lock, LogOut, Package, FolderPlus, ShoppingBag, MessageSquare, Users, Truck } from 'lucide-react';
+import { Bell, LayoutDashboard, Lock, LogOut, Package, FolderPlus, ShoppingBag, MessageSquare, Users, Truck, Store } from 'lucide-react';
 
 // Import all child components
 import ManageDealers from './ManageDealers';
@@ -9,6 +9,7 @@ import ManageProducts from './ManageProducts';
 import ManageCategories from './ManageCategories';
 import Gunaso from './Gunaso';
 import UsersList from './UsersList';
+import PosBilling from './PosBilling'; // 🌟 नयाँ कम्पोनेन्ट इम्पोर्ट
 
 const API_URL = 'https://kiranastore-luig.onrender.com';
 
@@ -25,6 +26,10 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [gunasos, setGunasos] = useState([]);
   const [users, setUsers] = useState([]);
+  
+  // 🌟 १. Measure Units को लागि नयाँ State थपिएको
+  const [measureUnits, setMeasureUnits] = useState([]);
+  
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
 
   const showToast = (message, type = 'success') => {
@@ -62,24 +67,37 @@ export default function AdminDashboard() {
         const res = await axios.get(`${API_URL}/api/admin/dealers`, { headers: { Authorization: `Bearer ${token}` } });
         setDealers(res.data);
     } catch (error) { console.error("Dealers fetch error:", error); }
-};
+  };
 
-// Ani mathiko fetchData() vitra array ma yeslai pani call garnus:
-const fetchData = async () => {
+  // 🌟 २. fetchData फङ्सनमा measure-units पनि तान्न (Fetch गर्न) थपिएको
+  // 🌟 Safe fetchData: Measure units को API फेल भए पनि Products र Categories नरोकिने!
+  const fetchData = async () => {
     try {
+        // १. पहिले पुरानै Products र Categories तान्ने (यो कहिल्यै फेल हुँदैन)
         const [catRes, prodRes] = await Promise.all([
             axios.get(`${API_URL}/api/categories`),
             axios.get(`${API_URL}/api/products`)
         ]);
         setCategories(catRes.data);
         setProducts(prodRes.data);
+
+        // २. त्यसपछि Measure Units तान्ने (छुट्टै try-catch मा राखेको ताकि यो फेल हुँदा पनि माथिको डाटा नहराओस्)
+        try {
+            const unitRes = await axios.get(`${API_URL}/api/measure-units`);
+            setMeasureUnits(unitRes.data);
+        } catch (unitErr) {
+            console.warn("⚠️ Measure Units को API अहिलेसम्म जोडिएको छैन वा सर्भरमा छैन:", unitErr.message);
+        }
+
+        // ३. बाँकी डाटाहरू तान्ने
         fetchOrders();
         fetchGunasos();
         fetchUsers();
-        fetchDealers(); // <--- Yaha call garnus
-    } catch (error) { console.error("Data fetch error:", error); }
-};
-
+        fetchDealers();
+    } catch (error) { 
+        console.error("Data fetch error:", error); 
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
@@ -157,6 +175,9 @@ const fetchData = async () => {
             <div className="flex items-center gap-3"><ShoppingBag size={22} /> Orders</div>
             {pendingOrdersCount > 0 && <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full animate-pulse">{pendingOrdersCount} New</span>}
           </li>
+          <li onClick={() => setActiveTab('pos')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'pos' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
+            <Store size={22} className="text-green-400" /> POS / Fast Billing
+          </li>
           <li onClick={() => setActiveTab('products')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'products' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
             <Package size={22} /> Manage Products
           </li>
@@ -180,36 +201,46 @@ const fetchData = async () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto h-screen bg-[#F3F4F6]">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-4xl font-black text-gray-800">
-              {activeTab === 'orders' ? 'Order Details 🛍️' : activeTab === 'products' ? 'Manage Products 📦' : activeTab === 'dealers' ? 'Dealers & Suppliers 🚚' : activeTab === 'gunaso' ? 'Customer Gunaso 💬' : activeTab === 'users' ? 'Registered Customers 👥' : 'Manage Categories 📁'}
+      <div className="flex-1 p-6 md:p-8 overflow-y-auto h-screen bg-[#F3F4F6]">
+        <div className={activeTab === 'pos' ? "w-full max-w-full" : "max-w-6xl mx-auto"}>
+          
+          {/* Top Header & Title */}
+          <div className="w-full flex justify-between items-center mb-6 border-b pb-4">
+            <h1 className="text-3xl md:text-4xl font-black text-gray-800">
+              {activeTab === 'pos' ? 'POS Fast Billing 🛒' : 
+               activeTab === 'orders' ? 'Order Details 🛍️' : 
+               activeTab === 'products' ? 'Manage Products 📦' : 
+               activeTab === 'dealers' ? 'Dealers & Suppliers 🚚' : 
+               activeTab === 'gunaso' ? 'Customer Gunaso 💬' : 
+               activeTab === 'users' ? 'Registered Customers 👥' : 'Manage Categories 📁'}
             </h1>
             
             {activeTab === 'orders' && pendingOrdersCount > 0 && (
-               <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border flex items-center gap-3">
+               <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border flex items-center gap-3 shrink-0">
                  <div className="relative"><Bell size={24} className="text-blue-600" /><span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span></div>
                  <span className="font-bold text-gray-700">{pendingOrdersCount} Pending Orders</span>
                </div>
             )}
             
             {activeTab === 'gunaso' && pendingGunasoCount > 0 && (
-               <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border flex items-center gap-3">
+               <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border flex items-center gap-3 shrink-0">
                  <div className="relative"><Bell size={24} className="text-orange-600" /><span className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-white"></span></div>
                  <span className="font-bold text-gray-700">{pendingGunasoCount} Pending Gunaso</span>
                </div>
             )}
           </div>
 
-          {/* Render Active Tab Component */}
-          {activeTab === 'orders' && <Orders orders={orders} fetchOrders={fetchOrders} API_URL={API_URL} showToast={showToast} />}
-          {activeTab === 'products' && <ManageProducts products={products} categories={categories} fetchData={fetchData} API_URL={API_URL} showToast={showToast} />}
-          {activeTab === 'categories' && <ManageCategories categories={categories} fetchData={fetchData} API_URL={API_URL} showToast={showToast} />}
-          {activeTab === 'gunaso' && <Gunaso gunasos={gunasos} fetchGunasos={fetchGunasos} API_URL={API_URL} showToast={showToast} />}
-          {activeTab === 'users' && <UsersList users={users} fetchUsers={fetchUsers} API_URL={API_URL} showToast={showToast} />}
-          {activeTab === 'dealers' && <ManageDealers dealers={dealers} fetchDealers={fetchDealers} API_URL={API_URL} showToast={showToast} />}
-          
+          {/* 🌟 ३. यहाँ तल Products र Categories मा measureUnits पनि पास गरिएको छ */}
+          <div className="w-full block">
+            {activeTab === 'orders' && <Orders orders={orders} fetchOrders={fetchOrders} API_URL={API_URL} showToast={showToast} />}
+            {activeTab === 'products' && <ManageProducts products={products} categories={categories} measureUnits={measureUnits} fetchData={fetchData} API_URL={API_URL} showToast={showToast} />}
+            {activeTab === 'categories' && <ManageCategories categories={categories} measureUnits={measureUnits} fetchData={fetchData} API_URL={API_URL} showToast={showToast} />}
+            {activeTab === 'gunaso' && <Gunaso gunasos={gunasos} fetchGunasos={fetchGunasos} API_URL={API_URL} showToast={showToast} />}
+            {activeTab === 'users' && <UsersList users={users} fetchUsers={fetchUsers} API_URL={API_URL} showToast={showToast} />}
+            {activeTab === 'dealers' && <ManageDealers dealers={dealers} fetchDealers={fetchDealers} API_URL={API_URL} showToast={showToast} />}
+            {activeTab === 'pos' && <PosBilling products={products} users={users} API_URL={API_URL} showToast={showToast} fetchOrders={fetchOrders} />}
+          </div>
+
         </div>
       </div>
     </div>

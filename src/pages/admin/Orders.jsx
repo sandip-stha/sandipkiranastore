@@ -1,6 +1,6 @@
 import React from 'react';
 import axios from 'axios';
-import { CheckCircle, CheckCircle2, Clock, Trash2 } from 'lucide-react';
+import { CheckCircle, CheckCircle2, Clock, Trash2, DollarSign, BookOpen } from 'lucide-react';
 
 const formatUnit = (unit, qty) => {
   if (typeof unit === 'string' && unit.startsWith(qty + ' ')) {
@@ -10,14 +10,41 @@ const formatUnit = (unit, qty) => {
 };
 
 export default function Orders({ orders, fetchOrders, API_URL, showToast }) {
-  const updateOrderStatus = async (id, status) => {
+  
+  // 🌟 NAYA UPDATE: डेलिभरी गर्दा नगद बुझेको हो कि उधारो हो भनेर सोध्ने लजिक
+  const handleDelivery = async (order) => {
+    // यदि पहिले नै eSewa/Khalti बाट PAID भइसकेको छ भने सिधै डेलिभर गर्ने
+    if (order.paymentStatus === 'PAID') {
+      await updateOrderStatus(order._id, 'Delivered', 'PAID', order.totalAmount);
+      return;
+    }
+
+    // यदि पैसा तिरेको छैन भने एडमिनलाई छनोट गर्न दिने
+    const isPaidCash = window.confirm(
+      `के ग्राहक (${order.customer?.name}) ले रु. ${order.totalAmount} नगद (Cash) तिरेका हुन्?\n\n👉 [OK] थिच्नुभयो भने: पैसा तिरेको (PAID) मानेर डेलिभर हुन्छ।\n👉 [Cancel] थिच्नुभयो भने: यो रकम स्वतः ग्राहकको उधारो खाता (Khata) मा जान्छ।`
+    );
+
+    if (isPaidCash) {
+      // नगद बुझेको भए:
+      await updateOrderStatus(order._id, 'Delivered', 'PAID', order.totalAmount);
+    } else {
+      // उधारोमा दिएको भए (Paid Amount 0, Status UNPAID):
+      await updateOrderStatus(order._id, 'Delivered', 'UNPAID', 0);
+    }
+  };
+
+  const updateOrderStatus = async (id, status, paymentStatus = undefined, paidAmount = undefined) => {
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.put(`${API_URL}/api/orders/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+      // 🌟 ब्याकएन्डले एक्सपेक्ट गर्ने status, paymentStatus, र paidAmount पठाएको
+      await axios.put(`${API_URL}/api/orders/${id}/status`, 
+        { status, paymentStatus, paidAmount }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       showToast(`Order marked as ${status}!`, "success");
       fetchOrders();
     } catch (err) {
-      showToast("Failed to update order", "error");
+      showToast(err.response?.data?.error || "Failed to update order", "error");
     }
   };
 
@@ -47,6 +74,13 @@ export default function Orders({ orders, fetchOrders, API_URL, showToast }) {
                 <h3 className="text-xl font-black text-gray-800">{order.customer?.name || 'Unknown User'}</h3>
                 <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 ${order.status === 'Pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' : 'bg-green-100 text-green-700 border border-green-200'}`}>
                   {order.status === 'Pending' ? <Clock size={14} /> : <CheckCircle size={14} />} {order.status}
+                </span>
+
+                {/* 🌟 NAYA: पेमेन्ट माध्यम र स्टाटसको ब्याज (Badge) थपिएको */}
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1 ${
+                  order.paymentStatus === 'PAID' ? 'bg-green-600 text-white' : 'bg-red-100 text-red-700'
+                }`}>
+                  {order.paymentMethod} • {order.paymentStatus}
                 </span>
               </div>
               <p className="text-gray-500 text-sm font-bold flex gap-3">
@@ -95,7 +129,8 @@ export default function Orders({ orders, fetchOrders, API_URL, showToast }) {
 
               <div className="flex gap-3">
                 {order.status === 'Pending' ? (
-                  <button onClick={() => updateOrderStatus(order._id, 'Delivered')} className="flex-1 bg-green-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-md">
+                  /* 🌟 NAYA: सिधै updateOrderStatus को सट्टा handleDelivery बोलाइएको छ */
+                  <button onClick={() => handleDelivery(order)} className="flex-1 bg-green-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-md">
                     <CheckCircle2 size={18} /> Mark Delivered
                   </button>
                 ) : (

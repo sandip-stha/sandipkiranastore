@@ -43,21 +43,34 @@ export default function CartDrawer() {
         displayUnit: formatUnit(item.displayUnit, item.qty)
       }));
 
+      // 🌟 १. LocalStorage बाट टोकन तान्ने (sk_token वा token जुन राख्नुभएको छ)
+      const token = localStorage.getItem('sk_token') || localStorage.getItem('token');
+
+      // 🌟 २. Axios request को header मा Authorization थप्ने
       const response = await axios.post(`${API_URL}/api/orders`, {
         customer: currentUser,
         items: cleanedCart,
         totalAmount: Number(totalAmount),
-        remarks: remarks // 🌟 NAYA: Backend मा remarks पठाइएको
+        remarks: remarks || "",
+        paymentMethod: "COD",
+        paymentStatus: "PENDING",
+        paidAmount: 0,
+        transactionId: ""
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}` // 🚨 यो लाइन थप्नै पर्छ!
+        }
       });
       
       if (response.status === 201) {
         setIsCartOpen(false);
         setShowInvoice(true); 
-        setRemarks(''); // अर्डर भइसकेपछि remarks खाली गर्ने
+        setRemarks('');
       }
     } catch (error) {
-      console.error("Order Error:", error);
-      showModal('error', 'Opps!', 'तपाईंको अर्डर पठाउन सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
+      console.error("Order Error:", error.response?.data || error);
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || 'तपाईंको अर्डर पठाउन सकिएन।';
+      showModal('error', 'Opps!', errorMsg);
     } finally {
       setIsProcessing(false);
     }
