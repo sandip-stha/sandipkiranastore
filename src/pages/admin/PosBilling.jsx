@@ -3,7 +3,7 @@ import axios from 'axios';
 import html2canvas from 'html2canvas';
 import { 
   Search, ShoppingCart, Trash2, UserCheck, DollarSign, 
-  BookOpen, CheckCircle, Store, Download, X, Printer, Keyboard 
+  BookOpen, CheckCircle, Store, Download, X, Printer, Keyboard, CreditCard 
 } from 'lucide-react';
 
 export default function PosBilling({ products, users, API_URL, showToast, fetchOrders }) {
@@ -13,7 +13,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
   const [cart, setCart] = useState([]);
   const [activeCartId, setActiveCartId] = useState(null);
   
-  // 🌟 Arrow Key Navigation States for Product List
+  // Arrow Key Navigation States for Product List
   const [selectedProdIdx, setSelectedProdIdx] = useState(0);
   const [selectedRateIdx, setSelectedRateIdx] = useState(0);
 
@@ -32,37 +32,55 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
   const [generatedBill, setGeneratedBill] = useState(null);
   const invoiceRef = useRef(null);
 
-  // 🎯 Input References for Keyboard Shortcuts
+  // PARTIAL PAYMENT STATES
+  const [showPartialModal, setShowPartialModal] = useState(false);
+  const [partialAmount, setPartialAmount] = useState('');
+
+  // Input & Row References
   const searchInputRef = useRef(null);
   const customerInputRef = useRef(null);
+  const partialInputRef = useRef(null);
   const qtyInputRefs = useRef({});
+  const productRowRefs = useRef({});
 
   // ==========================================
-  // 🔥 KEYBOARD SHORTCUTS ENGINE
+  // 🔥 SAFE & ERGONOMIC KEYBOARD SHORTCUTS
   // ==========================================
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey && e.key.toLowerCase() === 'i') || e.key === 'F2') {
+      // 🌟 Alt + I वा Ctrl + Q : सामान खोज्ने (Item Search)
+      if ((e.altKey && e.key.toLowerCase() === 'i') || (e.ctrlKey && e.key.toLowerCase() === 'q')) {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
-      if ((e.ctrlKey && e.key.toLowerCase() === 'c') || e.key === 'F3') {
+      // 🌟 Alt + C वा Ctrl + E : ग्राहक खोज्ने (Customer Search)
+      if ((e.altKey && e.key.toLowerCase() === 'c') || (e.ctrlKey && e.key.toLowerCase() === 'e')) {
         e.preventDefault();
         customerInputRef.current?.focus();
       }
-      if ((e.ctrlKey && e.key.toLowerCase() === 's') || e.key === 'F4') {
+      // 🌟 Ctrl + S वा Alt + S : नगद बिल (Cash Bill)
+      if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (cart.length > 0 && !showBillModal) handleCreateBill('PAID', 'CASH');
+        if (cart.length > 0 && !showBillModal && !showPartialModal) handleCreateBill('PAID', 'CASH');
       }
-      if ((e.ctrlKey && e.key.toLowerCase() === 'd') || e.key === 'F5') {
+      // 🌟 Ctrl + D वा Alt + D : उधारो बिल (Khata Bill)
+      if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
-        if (cart.length > 0 && !showBillModal) handleCreateBill('UNPAID', 'COD');
+        if (cart.length > 0 && !showBillModal && !showPartialModal) handleCreateBill('UNPAID', 'COD');
+      }
+      // 🌟 Alt + P वा Ctrl + B : आंशिक भुक्तानी (Partial Payment / किस्ता)
+      if ((e.altKey && e.key.toLowerCase() === 'p') || (e.ctrlKey && e.key.toLowerCase() === 'b')) {
+        e.preventDefault();
+        if (cart.length > 0 && !showBillModal && !showPartialModal) {
+          setShowPartialModal(true);
+          setTimeout(() => partialInputRef.current?.focus(), 100);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, showBillModal, customerName, customerPhone]);
+  }, [cart, showBillModal, showPartialModal, customerName, customerPhone]);
 
   // १. ग्राहक सर्च गर्ने (Dropdown को लागि)
   const filteredUsers = useMemo(() => {
@@ -98,22 +116,36 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
     }
   };
 
-  // २. सामान फिल्टर गर्ने
+  // २. सामान फिल्टर गर्ने (Category र Name दुवैबाट सर्च हुने)
   const filteredProducts = useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
     return products.filter(p => {
-      const matchName = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSearch = p.name.toLowerCase().includes(searchLower) || 
+                          (p.category && p.category.toLowerCase().includes(searchLower));
       const matchCat = selectedCategory === 'All' || p.category === selectedCategory;
-      return matchName && matchCat;
+      return matchSearch && matchCat;
     });
   }, [products, searchTerm, selectedCategory]);
 
-  // Search गर्दा वा Category चेन्ज हुँदा selection index रिसेट गर्ने
   useEffect(() => {
     setSelectedProdIdx(0);
     setSelectedRateIdx(0);
   }, [searchTerm, selectedCategory]);
 
-  // ३. कार्टमा सामान थप्ने र कर्सर Quantity मा लैजाने
+  // 🌟 ३. AUTO-SCROLL LOGIC WITH HEADER GAP FIX (सामान कहिल्यै हेडर मुनि लुक्दैन)
+  useEffect(() => {
+    if (filteredProducts[selectedProdIdx]) {
+      const activeId = filteredProducts[selectedProdIdx]._id;
+      if (productRowRefs.current[activeId]) {
+        productRowRefs.current[activeId].scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        });
+      }
+    }
+  }, [selectedProdIdx, filteredProducts]);
+
+  // ४. कार्टमा सामान थप्ने र कर्सर Quantity मा लैजाने
   const addToCart = (product, tier) => {
     const unitPrice = tier.price / tier.measureQty;
     const cartItemId = `${product._id}-${tier.measureUnit}`;
@@ -137,7 +169,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
         qty: tier.measureQty,
         finalPrice: tier.price,
         displayUnit: `${tier.measureQty} ${tier.measureUnit}`,
-        availableRates: product.pricing || [] // 🌟 बिलमा युनिट चेन्ज गर्नका लागि सबै रेटहरू सेभ गरेको
+        availableRates: product.pricing || []
       }];
     }
     setCart(updatedCart);
@@ -151,7 +183,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
     }, 50);
   };
 
-  // 🌟 ४. कार्ट (Bill) भित्रै Unit (Rate) चेन्ज गर्ने लजिक
+  // ५. कार्ट (Bill) भित्रै Unit (Rate) चेन्ज गर्ने लजिक
   const handleCartUnitChange = (oldCartItemId, newUnit) => {
     const itemToChange = cart.find(i => i.cartItemId === oldCartItemId);
     if (!itemToChange) return;
@@ -163,7 +195,6 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
     const newCartItemId = `${itemToChange.productId}-${newUnit}`;
     const qty = itemToChange.qty || 1;
 
-    // यदि नयाँ युनिटको सामान पहिल्यै कार्टमा छ भने मर्ज गर्ने, छैन भने अपडेट गर्ने
     const existingOther = cart.find(i => i.cartItemId === newCartItemId && i.cartItemId !== oldCartItemId);
 
     let updatedCart;
@@ -196,7 +227,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
     }, 50);
   };
 
-  // ५. सिधै नम्बर टाइप गरेर क्वान्टिटी परिवर्तन गर्ने
+  // ६. सिधै नम्बर टाइप गरेर क्वान्टिटी परिवर्तन गर्ने
   const handleCustomQtyChange = (cartItemId, newQtyVal) => {
     const qtyNum = parseFloat(newQtyVal);
     setCart(cart.map(item => {
@@ -213,7 +244,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
     }));
   };
 
-  // 🌟 ६. कार्टको Quantity बक्समा Arrow Key ले तल-माथि सार्ने
+  // ७. कार्टको Quantity बक्समा Arrow Key ले तल-माथि गर्ने र Shift+Left/Right ले Unit फेर्ने
   const handleQtyKeyDown = (e, index, cartItemId) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -233,8 +264,21 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
         qtyInputRefs.current[prevId]?.select();
         setActiveCartId(prevId);
       } else {
-        // सबैभन्दा माथि पुगेपछि Arrow Up थिच्दा Search Box मा कर्सर जाने
         searchInputRef.current?.focus();
+      }
+    } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.shiftKey) {
+      e.preventDefault();
+      const currentItem = cart[index];
+      if (currentItem?.availableRates?.length > 1) {
+        const currentUnitIdx = currentItem.availableRates.findIndex(r => r.measureUnit === currentItem.measureUnit);
+        let nextUnitIdx;
+        if (e.key === 'ArrowRight') {
+          nextUnitIdx = (currentUnitIdx + 1) % currentItem.availableRates.length;
+        } else {
+          nextUnitIdx = (currentUnitIdx - 1 + currentItem.availableRates.length) % currentItem.availableRates.length;
+        }
+        const nextUnit = currentItem.availableRates[nextUnitIdx].measureUnit;
+        handleCartUnitChange(currentItem.cartItemId, nextUnit);
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
@@ -243,14 +287,14 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
     }
   };
 
-  // 🌟 ७. Search Box मा Arrow Keys (Up, Down, Left, Right) को लजिक
+  // ८. Search Box मा Arrow Keys (Up, Down, Left, Right) को लजिक
   const handleSearchKeyDown = (e) => {
     if (!filteredProducts.length) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedProdIdx(prev => Math.min(prev + 1, filteredProducts.length - 1));
-      setSelectedRateIdx(0); // नयाँ सामानमा जाँदा पहिलो रेट सेलेक्ट हुने
+      setSelectedRateIdx(0);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedProdIdx(prev => Math.max(prev - 1, 0));
@@ -279,7 +323,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
   // ==========================================
   // 🔥 BILLING & KHATA TRANSFER LOGIC
   // ==========================================
-  const handleCreateBill = async (paymentStatus, paymentMethod) => {
+  const handleCreateBill = async (paymentStatus, paymentMethod, customPaidAmount = null) => {
     if (cart.length === 0) return showToast("कार्ट खाली छ! सामान थप्नुहोस्।", "error");
     if (!customerName.trim() || !customerPhone.trim()) {
       showToast("कृपया ग्राहकको नाम र फोन नम्बर अनिवार्य हाल्नुहोस्!", "error");
@@ -292,6 +336,11 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
       const token = localStorage.getItem('adminToken');
       const billNo = `SK-${Math.floor(100000 + Math.random() * 900000)}`;
       
+      let actualPaidAmount = 0;
+      if (paymentStatus === 'PAID') actualPaidAmount = Number(totalAmount);
+      else if (paymentStatus === 'PARTIALLY_PAID') actualPaidAmount = Number(customPaidAmount || 0);
+      else actualPaidAmount = 0;
+
       const orderData = {
         customer: {
           name: customerName,
@@ -305,7 +354,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
         remarks: `Counter POS Bill #${billNo}`,
         paymentMethod: paymentMethod,       
         paymentStatus: paymentStatus,       
-        paidAmount: paymentStatus === 'PAID' ? Number(totalAmount) : 0,
+        paidAmount: actualPaidAmount,
         status: "Pending"                   
       };
 
@@ -320,7 +369,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
           { 
             status: 'Delivered', 
             paymentStatus: paymentStatus, 
-            paidAmount: orderData.paidAmount 
+            paidAmount: actualPaidAmount 
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -333,11 +382,15 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
         items: [...cart],
         totalAmount: totalAmount,
         paymentStatus,
-        paymentMethod
+        paymentMethod,
+        paidAmount: actualPaidAmount,
+        dueAmount: (Number(totalAmount) - actualPaidAmount).toFixed(2)
       });
 
       setShowBillModal(true);
-      showToast(`बिल बन्यो! (${paymentStatus === 'PAID' ? 'नगद' : 'उधारो खातामा चढ्यो'})`, "success");
+      setShowPartialModal(false);
+      setPartialAmount('');
+      showToast(`बिल बन्यो! (${paymentStatus === 'PAID' ? 'नगद' : paymentStatus === 'PARTIALLY_PAID' ? 'किस्ता भुक्तानी' : 'उधारो खाता'})`, "success");
       if (fetchOrders) fetchOrders();
 
     } catch (err) {
@@ -381,18 +434,20 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
 
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] w-full max-w-full overflow-hidden">
-      {/* 🌟 COMPACT SHORTCUTS BAR */}
+      {/* 🌟 COMPACT SHORTCUTS BAR (नयाँ र सुरक्षित Shortcuts) */}
       <div className="bg-[#0A192F] text-white px-4 py-2 rounded-xl mb-3 flex items-center justify-between text-xs font-semibold shrink-0">
         <div className="flex items-center gap-2 text-yellow-400 font-bold">
           <Keyboard size={16} /> <span>POS Shortcuts:</span>
         </div>
         <div className="flex gap-3 flex-wrap">
-          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">↑ / ↓</kbd> Select Item</span>
-          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">← / →</kbd> Select Unit/Rate</span>
-          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">Ctrl+I</kbd> Search</span>
-          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">Ctrl+C</kbd> Customer</span>
-          <span><kbd className="bg-green-600/80 px-1.5 py-0.5 rounded text-[11px] font-mono">Ctrl+S</kbd> Cash</span>
-          <span><kbd className="bg-orange-600/80 px-1.5 py-0.5 rounded text-[11px] font-mono">Ctrl+D</kbd> Khata</span>
+          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">↑ / ↓</kbd> Item</span>
+          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">← / →</kbd> Rate</span>
+          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">Shift+←/→</kbd> Unit</span>
+          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">Alt+I / Ctrl+Q</kbd> Search</span>
+          <span><kbd className="bg-white/10 px-1.5 py-0.5 rounded text-[11px] font-mono">Alt+C / Ctrl+E</kbd> Customer</span>
+          <span><kbd className="bg-green-600/80 px-1.5 py-0.5 rounded text-[11px] font-mono">Ctrl+S / Alt+S</kbd> Cash</span>
+          <span><kbd className="bg-orange-600/80 px-1.5 py-0.5 rounded text-[11px] font-mono">Ctrl+D / Alt+D</kbd> Khata</span>
+          <span><kbd className="bg-yellow-600/80 px-1.5 py-0.5 rounded text-[11px] font-mono">Alt+P / Ctrl+B</kbd> Partial</span>
         </div>
       </div>
 
@@ -408,7 +463,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
               <input 
                 ref={searchInputRef}
                 type="text" 
-                placeholder="सामानको नाम टाइप गर्नुहोस् (↑↓ ले छान्न, ←→ ले युनिट छान्न)..." 
+                placeholder="सामान वा क्याटेगोरीको नाम टाइप गर्नुहोस् (Alt+I वा Ctrl+Q)..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
@@ -418,14 +473,14 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
             </div>
           </div>
 
-          {/* Product List Table */}
-          <div className="overflow-y-auto flex-1 p-2 custom-scrollbar">
+          {/* 🌟 Product List Table (scroll-pt-10 र scroll-mt-12 द्वारा हेडरले नछोप्ने बनाइएको) */}
+          <div className="overflow-y-auto flex-1 p-2 custom-scrollbar scroll-pt-10">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b text-[11px] font-bold text-gray-500 uppercase bg-gray-50 sticky top-0 z-10">
-                  <th className="p-2.5">Item Name</th>
-                  <th className="p-2.5">Category</th>
-                  <th className="p-2.5 text-right">Available Rates (← / → to Select)</th>
+                <tr className="border-b text-[11px] font-bold text-gray-500 uppercase bg-white shadow-sm sticky top-0 z-20">
+                  <th className="p-2.5 bg-white">Item Name</th>
+                  <th className="p-2.5 bg-white">Category</th>
+                  <th className="p-2.5 text-right bg-white">Available Rates (← / → to Select)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
@@ -434,8 +489,13 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
                   return (
                     <tr 
                       key={prod._id} 
-                      onClick={() => setSelectedProdIdx(index)}
-                      className={`hover:bg-blue-50/70 transition cursor-pointer ${
+                      ref={(el) => (productRowRefs.current[prod._id] = el)}
+                      onClick={() => {
+                        setSelectedProdIdx(index);
+                        searchInputRef.current?.focus();
+                      }}
+                      // 🌟 यहाँ scroll-mt-12 थपिएको छ ताकि माथि सार्दा सामान हेडरभन्दा तलै रोकिन्छ!
+                      className={`hover:bg-blue-50/70 transition cursor-pointer scroll-mt-12 ${
                         isRowSelected ? 'bg-blue-100/80 font-semibold border-l-4 border-blue-600' : ''
                       }`}
                     >
@@ -501,7 +561,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
                 <input 
                   ref={customerInputRef}
                   type="text"
-                  placeholder="ग्राहकको नाम वा फोन नम्बर खोज्नुहोस् (Ctrl+C)..."
+                  placeholder="ग्राहक खोज्नुहोस् (Alt+C वा Ctrl+E)..."
                   value={customerSearch}
                   onChange={(e) => {
                     setCustomerSearch(e.target.value);
@@ -531,7 +591,6 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
               </div>
             ) : null}
 
-            {/* 🌟 DISABLED LOGIC ADDED: Walk-in Manual मा टिक नहुँदासम्म लक हुने */}
             <div className="grid grid-cols-2 gap-2 pt-0.5">
               <input 
                 type="text" 
@@ -563,11 +622,19 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
             {cart.length === 0 ? (
               <div className="text-center py-16 text-gray-400 font-medium text-xs">
                 <ShoppingCart size={36} className="mx-auto mb-2 opacity-30" />
-                कार्ट खाली छ (Ctrl+I थिचेर सामान खोज्नुहोस्)
+                कार्ट खाली छ (Alt+I थिचेर सामान खोज्नुहोस्)
               </div>
             ) : (
               cart.map((item, idx) => (
-                <div key={item.cartItemId} className={`flex items-center justify-between p-2.5 rounded-xl border transition ${activeCartId === item.cartItemId ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-300' : 'bg-gray-50 border-gray-200'}`}>
+                <div 
+                  key={item.cartItemId} 
+                  onClick={() => {
+                    setActiveCartId(item.cartItemId);
+                    qtyInputRefs.current[item.cartItemId]?.focus();
+                    qtyInputRefs.current[item.cartItemId]?.select();
+                  }}
+                  className={`flex items-center justify-between p-2.5 rounded-xl border transition cursor-pointer ${activeCartId === item.cartItemId ? 'bg-blue-50/70 border-blue-300 ring-1 ring-blue-300' : 'bg-gray-50 border-gray-200'}`}
+                >
                   
                   {/* Left: Name & Rate */}
                   <div className="flex-1 min-w-0 pr-2">
@@ -590,7 +657,6 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
                         placeholder="0"
                       />
                       
-                      {/* 🌟 कार्ट भित्रै Unit (Rate) चेन्ज गर्न मिल्ने Dropdown */}
                       {item.availableRates && item.availableRates.length > 1 ? (
                         <select
                           value={item.measureUnit}
@@ -614,7 +680,7 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
                       Rs {item.finalPrice.toFixed(0)}
                     </div>
                     
-                    <button onClick={() => removeItem(item.cartItemId)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition">
+                    <button onClick={(e) => { e.stopPropagation(); removeItem(item.cartItemId); }} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition">
                       <Trash2 size={16} />
                     </button>
                   </div>
@@ -624,27 +690,40 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
             )}
           </div>
 
-          {/* Billing Action Footer */}
-          <div className="p-4 border-t bg-gray-50 space-y-3 shrink-0">
-            <div className="flex justify-between items-center">
+          {/* 🌟 Billing Action Footer */}
+          <div className="p-3 border-t bg-gray-50 space-y-2.5 shrink-0">
+            <div className="flex justify-between items-center px-1">
               <span className="font-bold text-gray-500 uppercase text-xs">Total Amount</span>
               <span className="text-2xl font-black text-blue-700 font-mono">Rs {totalAmount}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 disabled={isProcessing}
                 onClick={() => handleCreateBill('PAID', 'CASH')}
-                className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition disabled:opacity-50"
+                className="bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 shadow-md active:scale-95 transition disabled:opacity-50"
               >
-                <DollarSign size={16} /> नगद बिल (Ctrl+S)
+                <DollarSign size={15} /> नगद (Alt+S)
               </button>
+              
+              <button
+                disabled={isProcessing}
+                onClick={() => {
+                  if (cart.length === 0) return showToast("कार्ट खाली छ!", "error");
+                  setShowPartialModal(true);
+                  setTimeout(() => partialInputRef.current?.focus(), 100);
+                }}
+                className="bg-yellow-500 hover:bg-yellow-600 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 shadow-md active:scale-95 transition disabled:opacity-50"
+              >
+                <CreditCard size={15} /> किस्ता (Alt+P)
+              </button>
+
               <button
                 disabled={isProcessing}
                 onClick={() => handleCreateBill('UNPAID', 'COD')}
-                className="bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition disabled:opacity-50"
+                className="bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 shadow-md active:scale-95 transition disabled:opacity-50"
               >
-                <BookOpen size={16} /> उधारो खाता (Ctrl+D)
+                <BookOpen size={15} /> उधारो (Alt+D)
               </button>
             </div>
           </div>
@@ -652,6 +731,68 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
         </div>
 
       </div>
+
+      {/* 🌟 PARTIAL PAYMENT MODAL */}
+      {showPartialModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden p-6 animate-in zoom-in-95 duration-300">
+            <h3 className="text-lg font-black text-gray-800 mb-1 flex items-center gap-2">
+              <CreditCard className="text-yellow-500" /> आंशिक भुक्तानी (Partial Payment)
+            </h3>
+            <p className="text-xs text-gray-500 mb-4 font-semibold">ग्राहकले अहिले कति नगद बुझायो टाइप गर्नुहोस्:</p>
+            
+            <div className="bg-gray-50 p-3 rounded-xl border mb-4 flex justify-between items-center">
+              <span className="text-xs font-bold text-gray-600">जम्मा बिल रकम:</span>
+              <span className="text-base font-black text-blue-600 font-mono">Rs {totalAmount}</span>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-700 mb-1">अहिले बुझाएको नगद (Rs) *</label>
+              <input
+                ref={partialInputRef}
+                type="number"
+                min="1"
+                max={totalAmount}
+                value={partialAmount}
+                onChange={(e) => setPartialAmount(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && partialAmount && Number(partialAmount) > 0) {
+                    handleCreateBill('PARTIALLY_PAID', 'CASH', partialAmount);
+                  }
+                }}
+                placeholder="उदा. 500"
+                className="w-full p-3 border-2 border-yellow-400 rounded-xl font-bold text-lg text-center outline-none focus:ring-2 focus:ring-yellow-500 bg-white"
+              />
+              {partialAmount && Number(partialAmount) > 0 && (
+                <p className="text-[11px] text-orange-600 font-bold mt-1 text-center">
+                  बाँकी उधारो खातामा जाने: Rs {(Number(totalAmount) - Number(partialAmount)).toFixed(2)}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button 
+                onClick={() => { setShowPartialModal(false); setPartialAmount(''); }} 
+                className="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-xl font-bold hover:bg-gray-300 transition text-xs"
+              >
+                रद्द गर्नुहोस्
+              </button>
+              <button 
+                onClick={() => {
+                  if (!partialAmount || Number(partialAmount) <= 0 || Number(partialAmount) >= Number(totalAmount)) {
+                    showToast("कृपया सही किस्ता रकम हाल्नुहोस्!", "error");
+                    return;
+                  }
+                  handleCreateBill('PARTIALLY_PAID', 'CASH', partialAmount);
+                }} 
+                className="flex-1 bg-yellow-500 text-white py-2.5 rounded-xl font-bold hover:bg-yellow-600 transition text-xs shadow-md"
+              >
+                बिल बनाउनुहोस्
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 🌟 INSTANT BILL GENERATION MODAL (POPUP) */}
       {showBillModal && generatedBill && (
@@ -662,7 +803,11 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
               <button onClick={startNewBill} className="absolute top-4 right-4 bg-green-700 p-1.5 rounded-full hover:bg-green-800 transition"><X size={16} /></button>
               <CheckCircle size={36} className="mx-auto mb-1 text-white animate-bounce" />
               <h3 className="font-black text-lg">बिल तयार भयो! 🎉</h3>
-              <p className="text-green-100 text-xs mt-0.5">{generatedBill.paymentStatus === 'PAID' ? 'नगद भुक्तानी (Cash Received)' : 'उधारो खातामा चढाइयो (Khata Entry)'}</p>
+              <p className="text-green-100 text-xs mt-0.5">
+                {generatedBill.paymentStatus === 'PAID' ? 'नगद भुक्तानी (Cash Received)' : 
+                 generatedBill.paymentStatus === 'PARTIALLY_PAID' ? `किस्ता: Rs ${generatedBill.paidAmount} नगद (बाँकी उधारो)` : 
+                 'उधारो खातामा चढाइयो (Khata Entry)'}
+              </p>
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 flex justify-center bg-gray-100">
@@ -705,9 +850,26 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
                   <span>TOTAL AMOUNT</span>
                   <span>Rs {generatedBill.totalAmount}</span>
                 </div>
+
+                {generatedBill.paymentStatus === 'PARTIALLY_PAID' && (
+                  <div className="text-xs font-bold text-gray-800 border-t border-dashed pt-1 mb-1">
+                    <div className="flex justify-between text-green-700">
+                      <span>PAID (CASH):</span>
+                      <span>Rs {generatedBill.paidAmount}</span>
+                    </div>
+                    <div className="flex justify-between text-red-600">
+                      <span>DUE (KHATA):</span>
+                      <span>Rs {generatedBill.dueAmount}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-xs font-bold text-gray-600 border-b pb-3 mb-3">
                   <span>Payment Mode:</span>
-                  <span className="uppercase font-black">{generatedBill.paymentStatus === 'PAID' ? 'CASH' : 'KHATA (DUE)'}</span>
+                  <span className="uppercase font-black">
+                    {generatedBill.paymentStatus === 'PAID' ? 'CASH' : 
+                     generatedBill.paymentStatus === 'PARTIALLY_PAID' ? 'PARTIAL (CASH+DUE)' : 'KHATA (DUE)'}
+                  </span>
                 </div>
 
                 <div className="text-center text-[10px] text-gray-500 font-bold">
