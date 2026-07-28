@@ -48,11 +48,15 @@ export default function AdminDashboard() {
   const fetchGunasos = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await axios.get(`${API_URL}/api/admin/gunaso`, { headers: { Authorization: `Bearer ${token}` } });
+      // 🌟 सच्याइएको: /api/admin/gunaso को ठाउँमा /api/gunaso/admin बनाइएको
+      const res = await axios.get(`${API_URL}/api/gunaso/admin`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
       setGunasos(res.data);
-    } catch (error) { console.error("Gunaso fetch error:", error); }
+    } catch (error) { 
+      console.error("Gunaso fetch error:", error); 
+    }
   };
-
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('adminToken');

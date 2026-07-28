@@ -6,7 +6,10 @@ export default function Gunaso({ gunasos, fetchGunasos, API_URL, showToast }) {
   const updateGunasoStatus = async (id, status) => {
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.put(`${API_URL}/api/admin/gunaso/${id}/status`, { status }, { headers: { Authorization: `Bearer ${token}` } });
+      // 🌟 सच्याइएको: /api/gunaso/admin/${id}/status
+      await axios.put(`${API_URL}/api/gunaso/admin/${id}/status`, { status }, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
       showToast(`Gunaso marked as ${status}!`, "success");
       fetchGunasos();
     } catch (err) {
@@ -18,7 +21,10 @@ export default function Gunaso({ gunasos, fetchGunasos, API_URL, showToast }) {
     if (!window.confirm("Are you sure? यो गुनासो सधैंको लागि डिलिट हुनेछ!")) return;
     try {
       const token = localStorage.getItem('adminToken');
-      await axios.delete(`${API_URL}/api/admin/gunaso/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      // 🌟 सच्याइएको: /api/gunaso/admin/${id}
+      await axios.delete(`${API_URL}/api/gunaso/admin/${id}`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
       showToast("Gunaso Deleted!", "success");
       fetchGunasos();
     } catch (err) {
