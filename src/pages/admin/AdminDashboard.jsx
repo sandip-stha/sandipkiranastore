@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Bell, LayoutDashboard, Lock, LogOut, Package, FolderPlus, ShoppingBag, MessageSquare, Users, Truck, Store } from 'lucide-react';
+import { Bell, LayoutDashboard, Lock, LogOut, Package, FolderPlus, ShoppingBag, MessageSquare, Users, Truck, Store, BookOpen } from 'lucide-react';
 
 // Import all child components
 import ManageDealers from './ManageDealers';
@@ -10,6 +10,7 @@ import ManageCategories from './ManageCategories';
 import Gunaso from './Gunaso';
 import UsersList from './UsersList';
 import PosBilling from './PosBilling'; // 🌟 नयाँ कम्पोनेन्ट इम्पोर्ट
+import UdharoKhata from './UdharoKhata';
 
 const API_URL = 'https://kiranastore-luig.onrender.com';
 
@@ -196,6 +197,9 @@ export default function AdminDashboard() {
           <li onClick={() => setActiveTab('dealers')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'dealers' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
               <Truck size={22} /> Dealers & Suppliers
           </li>
+          <li onClick={() => setActiveTab('khata')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'khata' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
+              <BookOpen size={22} /> Udharo Khata
+          </li>
         </ul>
         <div className="border-t border-gray-700 pt-6">
           <button onClick={handleLogout} className="w-full cursor-pointer p-4 rounded-xl text-red-400 hover:text-white hover:bg-red-500/20 flex items-center justify-center gap-2 font-bold transition"><LogOut size={20} /> Logout</button>
@@ -210,6 +214,7 @@ export default function AdminDashboard() {
           <div className="w-full flex justify-between items-center mb-6 border-b pb-4">
             <h1 className="text-3xl md:text-4xl font-black text-gray-800">
               {activeTab === 'pos' ? 'POS Fast Billing 🛒' : 
+               activeTab === 'khata' ? 'Udharo Khata (Customer Ledger) 📒' :
                activeTab === 'orders' ? 'Order Details 🛍️' : 
                activeTab === 'products' ? 'Manage Products 📦' : 
                activeTab === 'dealers' ? 'Dealers & Suppliers 🚚' : 
@@ -241,6 +246,7 @@ export default function AdminDashboard() {
             {activeTab === 'users' && <UsersList users={users} fetchUsers={fetchUsers} API_URL={API_URL} showToast={showToast} />}
             {activeTab === 'dealers' && <ManageDealers dealers={dealers} fetchDealers={fetchDealers} API_URL={API_URL} showToast={showToast} />}
             {activeTab === 'pos' && <PosBilling products={products} users={users} API_URL={API_URL} showToast={showToast} fetchOrders={fetchOrders} />}
+            {activeTab === 'khata' && <UdharoKhata API_URL={API_URL} showToast={showToast} users={users} />}
           </div>
 
         </div>
