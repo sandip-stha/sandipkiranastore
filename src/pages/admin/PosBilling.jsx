@@ -377,7 +377,8 @@ export default function PosBilling({ products, users, API_URL, showToast, fetchO
 
       setGeneratedBill({
         billNo,
-        date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        // 🚨 नेपाली मिति र अङ्ग्रेजी समय (AM/PM) जोडेर देखाउने सबैभन्दा सुरक्षित तरिका
+        date: `${new NepaliDate().format('DD MMMM YYYY', 'np')}, ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
         customer: orderData.customer,
         items: [...cart],
         totalAmount: totalAmount,

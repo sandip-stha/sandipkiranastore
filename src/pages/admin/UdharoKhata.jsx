@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { Search, Phone, Wallet, CheckCircle, X, History, FileText, ArrowDownRight, Users, BookOpen, User, PlusCircle, Calendar, UserPlus } from 'lucide-react';
+import NepaliDate from 'nepali-datetime';
+
 
 const toBikramSambat = (dateStr) => {
-    const date = new Date(dateStr || Date.now());
-    const bsYear = date.getFullYear() + 56 + (date.getMonth() >= 3 && date.getDate() >= 14 ? 1 : 0);
-    const nepaliMonths = ['बैशाख', 'जेठ', 'असार', 'साउन', 'भदौ', 'असोज', 'कार्तिक', 'मंसिर', 'पुष', 'माघ', 'फागुन', 'चैत'];
-    let bsMonthIndex = (date.getMonth() + 9) % 12;
-    let bsDay = (date.getDate() + 17) % 30;
-    if (bsDay === 0) bsDay = 30;
-    const nepaliDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
-    const dayNep = bsDay.toString().split('').map(d => nepaliDigits[d] || d).join('');
-    const yearNep = bsYear.toString().split('').map(d => nepaliDigits[d] || d).join('');
-    return `${dayNep} ${nepaliMonths[bsMonthIndex]} ${yearNep}`;
+  const englishDate = new Date(dateStr || Date.now());
+  // यदि मिति invalid छ भने आजको मिति लिने
+  if (isNaN(englishDate.getTime())) return new NepaliDate().format('DD MMMM YYYY');
+  
+  const nepaliDate = new NepaliDate(englishDate);
+  // 'DD MMMM YYYY' ले "14 Shrawan 2083" दिन्छ। 
+  // यदि देवनागरी (नेपाली अक्षर) मा नै "१४ साउन २०८३" चाहनुहुन्छ भने 'np' pass गर्नुपर्छ
+  return nepaliDate.format('DD MMMM YYYY', 'np'); 
 };
 
 const formatMoney = (amount) => {
