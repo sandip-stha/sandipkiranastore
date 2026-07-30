@@ -122,10 +122,17 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
         try {
             setSubmitting(true);
             const token = localStorage.getItem('adminToken');
-            const response = await axios.post(`${API_URL}/api/admin/khata/receive-cash`, { phone: selectedCustomer.phone, amountReceived: amount }, { headers: { Authorization: `Bearer ${token}` } });
+            // 🚨 यहाँ URL परिवर्तन गरिएको छ! 
+            const response = await axios.post(`${API_URL}/api/khata/receive-cash`, { 
+                phone: selectedCustomer.phone, 
+                amountReceived: amount 
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            
             if(response.data.success) {
                 showToast("रकम खातामा जम्मा भयो!", "success");
-                setModalVisible(false); setCashAmount(''); fetchKhataSummary();
+                setModalVisible(false); 
+                setCashAmount(''); 
+                fetchKhataSummary();
             }
         } catch (error) {
             showToast("नगद इन्ट्री गर्न सकिएन।", "error");
