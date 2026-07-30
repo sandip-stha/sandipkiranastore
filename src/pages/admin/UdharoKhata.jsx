@@ -63,28 +63,45 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
         try {
             setLoading(true);
             const token = localStorage.getItem('adminToken');
-            const res = await axios.get(`${API_URL}/api/orders?all=true`, { headers: { Authorization: `Bearer ${token}` } });
             
-            const pendingOrders = res.data.filter(order => {
-                const total = order.totalAmount || 0;
-                const paid = order.paidAmount || 0;
-                return order.status === 'Delivered' && order.paymentStatus !== 'PAID' && (total - paid) > 0;
+            // 🚨 मुख्य परिवर्तन: Order को सट्टा Khata API बाट सबै डाटा तान्ने
+            const res = await axios.get(`${API_URL}/api/khata/all`, { 
+                headers: { Authorization: `Bearer ${token}` } 
             });
             
+            // भुक्तानी भइनसकेका खाताहरू मात्र छान्ने
+            const pendingKhatas = res.data.filter(khata => {
+                return khata.status !== 'PAID' && (khata.dueAmount > 0);
+            });
+            
+            // ग्राहकको नम्बर अनुसार ग्रुप गर्ने (Grouping)
             const groupedData = {};
-            pendingOrders.forEach(order => {
-                const phone = order.customer?.phone || 'Unknown Phone';
-                const name = order.customer?.name || 'Unknown Customer';
-                if (!groupedData[phone]) groupedData[phone] = { name, phone, email: order.customer?.email, totalDue: 0, orderCount: 0, orders: [] };
-                groupedData[phone].totalDue += (order.totalAmount - (order.paidAmount || 0));
+            pendingKhatas.forEach(khata => {
+                const phone = khata.customer?.phone || 'Unknown Phone';
+                const name = khata.customer?.name || 'Unknown Customer';
+                
+                if (!groupedData[phone]) {
+                    groupedData[phone] = { 
+                        name, 
+                        phone, 
+                        email: khata.customer?.email, 
+                        totalDue: 0, 
+                        orderCount: 0, 
+                        orders: [] // पुरानै UI नबिग्रियोस् भनेर नाम orders नै राखेको
+                    };
+                }
+                
+                groupedData[phone].totalDue += khata.dueAmount;
                 groupedData[phone].orderCount += 1;
-                groupedData[phone].orders.push(order);
+                groupedData[phone].orders.push(khata);
             });
 
+            // धेरै उधारो हुनेलाई माथि देखाउने
             const finalArray = Object.values(groupedData).sort((a, b) => b.totalDue - a.totalDue);
             setKhataList(finalArray);
             setFilteredList(finalArray);
 
+            // यदि कोही Customer पहिले नै Select भएको थियो भने त्यसको डाटा Update गर्ने
             if (selectedCustomer) {
                 const updatedCustomer = finalArray.find(c => c.phone === selectedCustomer.phone);
                 if (updatedCustomer) {
