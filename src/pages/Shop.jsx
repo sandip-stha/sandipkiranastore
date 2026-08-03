@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// Plus को सट्टा ShoppingCart आइकन राखिएको छ
-import { Search, SlidersHorizontal, ShoppingCart } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // लगइन पेजमा पठाउन थपिएको
+import { Search, SlidersHorizontal, ShoppingCart, Lock } from 'lucide-react'; // Lock आइकन थपिएको
 import axios from 'axios';
 import ProductModal from '../components/ProductModal';
 
@@ -11,6 +11,17 @@ export default function Shop() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('default');
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  const navigate = useNavigate(); // Navigation को लागि
+  
+  // Login status check
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    // sk_token चेक गर्ने
+    const token = localStorage.getItem('sk_token');
+    setIsLoggedIn(!!token);
+  }, []);
 
   useEffect(() => {
     axios.get('https://kiranastore-luig.onrender.com/api/categories').then(res => setCategories(['All', ...res.data.map(c => c.name)]));
@@ -79,7 +90,7 @@ export default function Shop() {
                   />
                 </div>
 
-                {/* Text & Button Section (हल्का निलो ब्याकग्राउन्ड) */}
+                {/* Text & Button Section */}
                 <div className="bg-[#f2f7ff] p-4 flex flex-col flex-1 border-t border-blue-100/50 rounded-b-2xl">
                   
                   {/* Category Name */}
@@ -92,23 +103,47 @@ export default function Shop() {
                     {product.name}
                   </h3>
                   
-                  {/* Price and Quantity */}
-                  <div className="flex items-baseline gap-1 mb-4">
-                    <span className="text-base md:text-lg font-black text-gray-900">
-                      Rs. {defaultTier.price}
-                    </span>
-                    <span className="text-xs md:text-sm text-gray-500 font-semibold">
-                      / {defaultTier.measureQty} {defaultTier.measureUnit}
-                    </span>
-                  </div>
+                  {/* Price and Quantity - Conditional Rendering */}
+                  {isLoggedIn ? (
+                    <div className="flex items-baseline gap-1 mb-4">
+                      <span className="text-base md:text-lg font-black text-gray-900">
+                        Rs. {defaultTier.price}
+                      </span>
+                      <span className="text-xs md:text-sm text-gray-500 font-semibold">
+                        / {defaultTier.measureQty} {defaultTier.measureUnit}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mb-4 h-6 md:h-7">
+                      {/* Empty space to match height */}
+                    </div>
+                  )}
                   
-                  {/* Space filler to keep button at the bottom */}
+                  {/* Button Section */}
                   <div className="mt-auto">
-                    {/* Order Now Button */}
-                    <button className="w-full bg-[#3b82f6] text-white py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-sm">
-                      <ShoppingCart size={18} />
-                      Order Now
-                    </button>
+                    {isLoggedIn ? (
+                      <button 
+                        className="w-full bg-[#3b82f6] text-white py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Modal खुल्नबाट रोक्न
+                          setSelectedProduct(product); // अर्डर गर्न Modal खोल्न
+                        }}
+                      >
+                        <ShoppingCart size={18} />
+                        Order Now
+                      </button>
+                    ) : (
+                      <button 
+                        className="w-full bg-slate-800 text-white py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base hover:bg-slate-900 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+                        onClick={(e) => {
+                          e.stopPropagation(); // पछाडिको कार्ड क्लिक हुनबाट रोक्न
+                          navigate('/login'); // सिधै लगइन पेजमा पठाउन
+                        }}
+                      >
+                        <Lock size={18} className="text-slate-300" />
+                        Login to Order
+                      </button>
+                    )}
                   </div>
                   
                 </div>
@@ -119,7 +154,13 @@ export default function Shop() {
       </div>
       
       {/* Product Modal */}
-      {selectedProduct && <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />}
+      {selectedProduct && (
+        <ProductModal 
+          product={selectedProduct} 
+          isLoggedIn={isLoggedIn} // Modal मा पनि Login status पठाउन
+          onClose={() => setSelectedProduct(null)} 
+        />
+      )}
     </main>
   );
 }

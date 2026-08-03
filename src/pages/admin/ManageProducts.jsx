@@ -3,16 +3,15 @@ import axios from 'axios';
 import imageCompression from 'browser-image-compression';
 import { PlusCircle, Edit, Trash2, Search, Filter } from 'lucide-react';
 
-// 🌟 MEASURE_UNITS manual array हटाइयो। अब यो props (measureUnits) बाट आउँछ।
 export default function ManageProducts({ products, categories, measureUnits = [], fetchData, API_URL, showToast }) {
   
-  // 🌟 डिफल्ट युनिट सेट गर्दा backend बाट आएको पहिलो युनिट राख्ने, नभए 'Kg' राख्ने
   const defaultUnit = measureUnits[0]?.name || 'Kg';
 
   const [productForm, setProductForm] = useState({
     name: '', category: categories[0]?.name || '', description: '',
     pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }],
-    image: null, isEditing: false, editId: null
+    image: null, isEditing: false, editId: null,
+    isHotSale: false // 🟢 NAYA UPDATE: Hot Sale State
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -68,6 +67,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
     formData.append('category', productForm.category);
     formData.append('description', productForm.description);
     formData.append('pricing', JSON.stringify(validPricing));
+    formData.append('isHotSale', productForm.isHotSale); // 🟢 NAYA UPDATE: Sending to Backend
+
     if (productForm.image instanceof File || productForm.image instanceof Blob) formData.append('image', productForm.image);
 
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' };
@@ -97,7 +98,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
       pricing: prod.pricing?.length ? prod.pricing : [{ measureQty: '', measureUnit: defaultUnit, price: '' }], 
       image: null, 
       isEditing: true, 
-      editId: prod._id 
+      editId: prod._id,
+      isHotSale: prod.isHotSale || false // 🟢 NAYA UPDATE: Extracting from existing product
     });
     setImagePreview(prod.image);
     if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -117,7 +119,12 @@ export default function ManageProducts({ products, categories, measureUnits = []
   };
 
   const resetForm = () => {
-    setProductForm({ name: '', category: categories[0]?.name || '', description: '', pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }], image: null, isEditing: false, editId: null });
+    setProductForm({ 
+      name: '', category: categories[0]?.name || '', description: '', 
+      pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }], 
+      image: null, isEditing: false, editId: null, 
+      isHotSale: false // 🟢 NAYA UPDATE: Resetting State
+    });
     setImagePreview(null);
   };
 
@@ -163,7 +170,6 @@ export default function ManageProducts({ products, categories, measureUnits = []
             </div>
             <div className="space-y-2">
               {productForm.pricing.map((priceItem, index) => {
-                // 🌟 पुरानो प्रोडक्टलाई असर नपरोस् भनेर Fallback Check: यदि पुरानो युनिट लिस्टबाट डिलिट भइसकेको रहेछ भने पनि त्यो Dropdown मा देखिनेछ
                 const isUnitInList = measureUnits.some(u => u.name === priceItem.measureUnit);
                 
                 return (
@@ -171,7 +177,6 @@ export default function ManageProducts({ products, categories, measureUnits = []
                     <input type="number" step="any" placeholder="Qty" value={priceItem.measureQty} onChange={(e) => handlePriceChange(index, 'measureQty', e.target.value)} className="w-16 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center font-bold text-sm" required />
                     
                     <select value={priceItem.measureUnit} onChange={(e) => handlePriceChange(index, 'measureUnit', e.target.value)} className="w-24 p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-center text-sm">
-                      {/* यदि पुरानो युनिट डिलिट भएको छ भने त्यसलाई पनि अप्सनमा राख्ने ताकि डाटा नबिग्रियोस् */}
                       {!isUnitInList && priceItem.measureUnit && (
                         <option value={priceItem.measureUnit}>{priceItem.measureUnit} (Old)</option>
                       )}
@@ -192,6 +197,21 @@ export default function ManageProducts({ products, categories, measureUnits = []
           <div>
             <label className="block text-gray-600 font-semibold mb-1 text-sm">Description</label>
             <textarea value={productForm.description} onChange={(e) => setProductForm({...productForm, description: e.target.value})} rows="2" className="w-full p-3 border rounded-xl text-sm"></textarea>
+          </div>
+          
+          {/* 🟢 NAYA UPDATE: Hot Sale Checkbox UI */}
+          <div className="flex items-center gap-2 bg-orange-50/50 p-3 rounded-xl border border-orange-100 mt-1">
+            <input 
+              type="checkbox" 
+              id="hotSale" 
+              checked={productForm.isHotSale} 
+              onChange={(e) => setProductForm({...productForm, isHotSale: e.target.checked})} 
+              className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500 cursor-pointer" 
+            />
+            <label htmlFor="hotSale" className="font-bold text-gray-700 text-sm cursor-pointer flex items-center gap-1.5">
+              <span className="bg-red-100 text-red-600 px-1 rounded text-xs">🔥</span> 
+              Mark as Hot Sale / दैनिक आवश्यक
+            </label>
           </div>
           
           <div>
@@ -245,7 +265,11 @@ export default function ManageProducts({ products, categories, measureUnits = []
                       <div className="flex items-center gap-3">
                           <img src={prod.image} alt={prod.name} className="w-12 h-12 rounded-lg object-cover border shadow-sm" />
                           <div>
-                              <div className="font-bold text-gray-800">{prod.name}</div>
+                              <div className="font-bold text-gray-800 flex items-center gap-1">
+                                {prod.name}
+                                {/* 🟢 NAYA UPDATE: Table Badge for Hot Sale */}
+                                {prod.isHotSale && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full" title="Hot Sale">🔥</span>}
+                              </div>
                               <span className="text-gray-500 text-xs font-semibold">{prod.category}</span>
                           </div>
                       </div>
