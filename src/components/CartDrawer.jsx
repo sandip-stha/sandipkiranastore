@@ -1,6 +1,6 @@
 // CartDrawer.jsx
 import React, { useState, useRef } from 'react';
-import { ShoppingCart, X, Trash2, Store, Download, Loader2, CheckCircle, MessageSquare } from 'lucide-react'; // 🌟 MessageSquare icon थपिएको छ
+import { ShoppingCart, X, Trash2, Store, Download, Loader2, CheckCircle, MessageSquare } from 'lucide-react'; 
 import { useCart } from '../context/CartContext';
 import html2canvas from 'html2canvas';
 import axios from 'axios';
@@ -30,6 +30,10 @@ export default function CartDrawer() {
 
   const API_URL = 'https://kiranastore-luig.onrender.com'; 
 
+  // 🌟 NAYA: Delivery Charge Logic (CartScreen जस्तै)
+  const deliveryCharge = (totalAmount > 0 && totalAmount < 5000) ? 100 : 0;
+  const grandTotal = Number(totalAmount) + deliveryCharge;
+
   if (!isCartOpen && !showInvoice) return null;
 
   const handlePlaceOrder = async () => {
@@ -43,6 +47,12 @@ export default function CartDrawer() {
         displayUnit: formatUnit(item.displayUnit, item.qty)
       }));
 
+      // 🌟 Remarks मा Delivery Charge को जानकारी थप्ने
+      let finalRemarks = remarks || "";
+      if (deliveryCharge > 0) {
+        finalRemarks += finalRemarks ? ` | (Delivery Charge Rs ${deliveryCharge} included)` : `(Delivery Charge Rs ${deliveryCharge} included)`;
+      }
+
       // 🌟 १. LocalStorage बाट टोकन तान्ने (sk_token वा token जुन राख्नुभएको छ)
       const token = localStorage.getItem('sk_token') || localStorage.getItem('token');
 
@@ -50,15 +60,15 @@ export default function CartDrawer() {
       const response = await axios.post(`${API_URL}/api/orders`, {
         customer: currentUser,
         items: cleanedCart,
-        totalAmount: Number(totalAmount),
-        remarks: remarks || "",
+        totalAmount: Number(grandTotal), // 🌟 Grand Total पठाइएको छ
+        remarks: finalRemarks,           // 🌟 Updated remarks पठाइएको छ
         paymentMethod: "COD",
         paymentStatus: "PENDING",
         paidAmount: 0,
         transactionId: ""
       }, {
         headers: {
-          Authorization: `Bearer ${token}` // 🚨 यो लाइन थप्नै पर्छ!
+          Authorization: `Bearer ${token}` 
         }
       });
       
@@ -234,12 +244,25 @@ export default function CartDrawer() {
 
             {cart.length > 0 && (
               <div className="p-5 bg-white border-t border-gray-200 shadow-[0_-15px_30px_rgba(0,0,0,0.04)] z-10">
-                <div className="flex justify-between items-end mb-3 px-2">
-                  <span className="text-gray-500 font-bold uppercase tracking-widest text-sm">Total Amount</span>
-                  <span className="text-3xl font-black text-blue-700">Rs {totalAmount}</span>
+                
+                {/* 🌟 NAYA: Summary Box (SubTotal, Delivery Charge, Grand Total) */}
+                <div className="mb-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <div className="flex justify-between mb-2">
+                    <span className="text-gray-600 font-bold text-sm">Sub Total</span>
+                    <span className="text-gray-900 font-bold text-sm">Rs {totalAmount}</span>
+                  </div>
+                  <div className="flex justify-between mb-3 border-b border-gray-200 pb-3">
+                    <span className="text-gray-600 font-bold text-sm">Delivery Charge</span>
+                    <span className={deliveryCharge === 0 ? "text-green-600 font-bold text-sm" : "text-gray-900 font-bold text-sm"}>
+                      {deliveryCharge > 0 ? `Rs ${deliveryCharge}` : 'FREE'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-end">
+                    <span className="text-blue-700 font-black uppercase tracking-widest text-sm">Grand Total</span>
+                    <span className="text-3xl font-black text-blue-700">Rs {grandTotal}</span>
+                  </div>
                 </div>
                 
-                {/* 🌟 NAYA: Remarks Textarea (२ लाइनको) */}
                 <div className="mb-4 relative">
                   <div className="absolute top-3 left-3 text-gray-400">
                     <MessageSquare size={16} />
@@ -303,7 +326,23 @@ export default function CartDrawer() {
                     ))}
                   </tbody>
                 </table>
-                <div className="border-t-2 border-black pt-4 mb-8 flex justify-between text-xl font-black text-gray-900"><span>TOTAL</span><span>Rs {totalAmount}</span></div>
+                
+                {/* 🌟 NAYA: Invoice Summary Section */}
+                <div className="border-t-2 border-black pt-4 mt-2">
+                  <div className="flex justify-between text-sm text-gray-600 font-bold mb-1">
+                    <span>Sub Total:</span>
+                    <span>Rs {totalAmount}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-600 font-bold mb-3 border-b border-dashed border-gray-300 pb-3">
+                    <span>Delivery Charge:</span>
+                    <span>{deliveryCharge > 0 ? `Rs ${deliveryCharge}` : 'FREE'}</span>
+                  </div>
+                  <div className="flex justify-between text-xl font-black text-gray-900 mb-8 mt-2">
+                    <span>GRAND TOTAL</span>
+                    <span>Rs {grandTotal}</span>
+                  </div>
+                </div>
+
               </div>
             </div>
 

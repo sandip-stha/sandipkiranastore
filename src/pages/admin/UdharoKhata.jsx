@@ -1,17 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
-import { Search, Phone, Wallet, CheckCircle, X, History, FileText, ArrowDownRight, Users, BookOpen, User, PlusCircle, Calendar, UserPlus } from 'lucide-react';
+import { Search, Phone, Wallet, CheckCircle, X, History, FileText, Users, BookOpen, PlusCircle, Calendar, UserPlus, Mail, MapPin, Navigation } from 'lucide-react';
 import NepaliDate from 'nepali-datetime';
-
 
 const toBikramSambat = (dateStr) => {
   const englishDate = new Date(dateStr || Date.now());
-  // यदि मिति invalid छ भने आजको मिति लिने
   if (isNaN(englishDate.getTime())) return new NepaliDate().format('DD MMMM YYYY');
   
   const nepaliDate = new NepaliDate(englishDate);
-  // 'DD MMMM YYYY' ले "14 Shrawan 2083" दिन्छ। 
-  // यदि देवनागरी (नेपाली अक्षर) मा नै "१४ साउन २०८३" चाहनुहुन्छ भने 'np' pass गर्नुपर्छ
   return nepaliDate.format('DD MMMM YYYY', 'np'); 
 };
 
@@ -19,7 +15,18 @@ const formatMoney = (amount) => {
     return Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-// 🌟 Props मा users = [] थपिएको छ
+const getInitials = (name) => {
+    if (!name || name === 'undefined' || name === 'null') return 'U';
+    const names = name.split(' ');
+    if (names.length > 1) return (names[0][0] + names[names.length - 1][0]).toUpperCase();
+    return names[0][0].toUpperCase();
+};
+
+// 🌟 NAYA: Photo string "undefined" वा "null" भएमा त्यसलाई false मान्ने Helper Function
+const isValidPic = (pic) => {
+    return pic && typeof pic === 'string' && pic !== 'undefined' && pic !== 'null' && pic.trim() !== '';
+};
+
 export default function UdharoKhata({ API_URL, showToast, users = [] }) {
     const [khataList, setKhataList] = useState([]);
     const [filteredList, setFilteredList] = useState([]);
@@ -39,9 +46,15 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
     const [submittingOldDue, setSubmittingOldDue] = useState(false);
 
     const [newKhataModalVisible, setNewKhataModalVisible] = useState(false);
-    const [newKhataForm, setNewKhataForm] = useState({ name: '', phone: '', amount: '', remarks: 'Opening Balance (पुरानो खाता)', date: new Date().toISOString().split('T')[0] });
     
-    // 🌟 Registered User Search States
+    // 🌟 NAYA: नयाँ खाता फर्ममा Register को लागि चाहिने सबै फिल्डहरू थपियो
+    const [newKhataForm, setNewKhataForm] = useState({ 
+        name: '', phone: '', email: '', address: '', landmark: '', 
+        amount: '', remarks: 'Opening Balance (पुरानो खाता)', 
+        date: new Date().toISOString().split('T')[0],
+        isExistingUser: false
+    });
+    
     const [userSearchTerm, setUserSearchTerm] = useState('');
     const [showUserDropdown, setShowUserDropdown] = useState(false);
 
@@ -53,8 +66,17 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
         ).slice(0, 5);
     }, [users, userSearchTerm]);
 
+    // 🌟 NAYA: Existing User छान्दा extra fields भर्नु नपर्ने
     const selectExistingUser = (user) => {
-        setNewKhataForm({ ...newKhataForm, name: user.name, phone: user.phone });
+        setNewKhataForm({ 
+            ...newKhataForm, 
+            name: user.name, 
+            phone: user.phone, 
+            email: user.email || '',
+            address: user.address || '',
+            landmark: user.landmark || '',
+            isExistingUser: true 
+        });
         setUserSearchTerm('');
         setShowUserDropdown(false);
     };
@@ -64,17 +86,14 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
             setLoading(true);
             const token = localStorage.getItem('adminToken');
             
-            // 🚨 मुख्य परिवर्तन: Order को सट्टा Khata API बाट सबै डाटा तान्ने
             const res = await axios.get(`${API_URL}/api/khata/all`, { 
                 headers: { Authorization: `Bearer ${token}` } 
             });
             
-            // भुक्तानी भइनसकेका खाताहरू मात्र छान्ने
             const pendingKhatas = res.data.filter(khata => {
                 return khata.status !== 'PAID' && (khata.dueAmount > 0);
             });
             
-            // ग्राहकको नम्बर अनुसार ग्रुप गर्ने (Grouping)
             const groupedData = {};
             pendingKhatas.forEach(khata => {
                 const phone = khata.customer?.phone || 'Unknown Phone';
@@ -82,13 +101,10 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                 
                 if (!groupedData[phone]) {
                     groupedData[phone] = { 
-                        name, 
-                        phone, 
-                        email: khata.customer?.email, 
-                        totalDue: 0, 
-                        orderCount: 0, 
-                        orders: [] // पुरानै UI नबिग्रियोस् भनेर नाम orders नै राखेको
+                        name, phone, email: khata.customer?.email, profilePic: khata.customer?.profilePic, totalDue: 0, orderCount: 0, orders: []
                     };
+                } else if (!isValidPic(groupedData[phone].profilePic) && isValidPic(khata.customer?.profilePic)) {
+                    groupedData[phone].profilePic = khata.customer.profilePic;
                 }
                 
                 groupedData[phone].totalDue += khata.dueAmount;
@@ -96,12 +112,10 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                 groupedData[phone].orders.push(khata);
             });
 
-            // धेरै उधारो हुनेलाई माथि देखाउने
             const finalArray = Object.values(groupedData).sort((a, b) => b.totalDue - a.totalDue);
             setKhataList(finalArray);
             setFilteredList(finalArray);
 
-            // यदि कोही Customer पहिले नै Select भएको थियो भने त्यसको डाटा Update गर्ने
             if (selectedCustomer) {
                 const updatedCustomer = finalArray.find(c => c.phone === selectedCustomer.phone);
                 if (updatedCustomer) {
@@ -139,23 +153,15 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
         try {
             setSubmitting(true);
             const token = localStorage.getItem('adminToken');
-            // 🚨 यहाँ URL परिवर्तन गरिएको छ! 
             const response = await axios.post(`${API_URL}/api/khata/receive-cash`, { 
-                phone: selectedCustomer.phone, 
-                amountReceived: amount 
+                phone: selectedCustomer.phone, amountReceived: amount 
             }, { headers: { Authorization: `Bearer ${token}` } });
             
             if(response.data.success) {
                 showToast("रकम खातामा जम्मा भयो!", "success");
-                setModalVisible(false); 
-                setCashAmount(''); 
-                fetchKhataSummary();
+                setModalVisible(false); setCashAmount(''); fetchKhataSummary();
             }
-        } catch (error) {
-            showToast("नगद इन्ट्री गर्न सकिएन।", "error");
-        } finally {
-            setSubmitting(false);
-        }
+        } catch (error) { showToast("नगद इन्ट्री गर्न सकिएन।", "error"); } finally { setSubmitting(false); }
     };
 
     const handleAddOldDue = async (isNewCustomer = false) => {
@@ -170,7 +176,25 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
         try {
             setSubmittingOldDue(true);
             const token = localStorage.getItem('adminToken');
-            
+
+            // 🌟 NAYA: यदि नयाँ ग्राहक हो र Existing User होइन भने, पहिले अटोमेटिक Register गरिदिने
+            if (isNewCustomer && !newKhataForm.isExistingUser) {
+                try {
+                    await axios.post(`${API_URL}/api/auth/register`, {
+                        name: newKhataForm.name,
+                        phone: newKhataForm.phone,
+                        email: newKhataForm.email || `${newKhataForm.phone}@kiranastore.com`,
+                        address: newKhataForm.address || 'N/A',
+                        landmark: newKhataForm.landmark || 'N/A',
+                        password: newKhataForm.phone, // डिफल्ट पासवर्ड फोन नम्बर
+                        confirmPassword: newKhataForm.phone
+                    });
+                } catch (regErr) {
+                    console.log("User may already exist or registration failed", regErr);
+                }
+            }
+
+            // त्यसपछि खातामा ओपनिङ ब्यालेन्स हाल्ने
             const response = await axios.post(`${API_URL}/api/khata/opening-balance`, { 
                 phone, name, amount, remarks, date
             }, { headers: { Authorization: `Bearer ${token}` } });
@@ -179,18 +203,14 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                 showToast("पुरानो खाता सफलतापूर्वक थपियो!", "success");
                 if (isNewCustomer) {
                     setNewKhataModalVisible(false);
-                    setNewKhataForm({ name: '', phone: '', amount: '', remarks: 'Opening Balance (पुरानो खाता)', date: new Date().toISOString().split('T')[0] });
+                    setNewKhataForm({ name: '', phone: '', email: '', address: '', landmark: '', amount: '', remarks: 'Opening Balance (पुरानो खाता)', date: new Date().toISOString().split('T')[0], isExistingUser: false });
                 } else {
                     setOldDueModalVisible(false); 
                     setOldDueForm({ amount: '', remarks: 'पुरानो खाताबाट सारिएको', date: new Date().toISOString().split('T')[0] });
                 }
                 fetchKhataSummary();
             }
-        } catch (error) {
-            showToast("पुरानो खाता थप्न सकिएन।", "error");
-        } finally {
-            setSubmittingOldDue(false);
-        }
+        } catch (error) { showToast("पुरानो खाता थप्न सकिएन।", "error"); } finally { setSubmittingOldDue(false); }
     };
 
     const displayData = showAllHistory ? allLedgerData : allLedgerData.filter(o => o.paymentStatus !== 'PAID' && (o.totalAmount - (o.paidAmount || 0)) > 0);
@@ -211,20 +231,14 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                         <h2 className="text-[15px] font-black text-slate-800 flex items-center gap-2 tracking-wide uppercase">
                             <Users size={18} className="text-blue-600"/> Customer Directory
                         </h2>
-                        <button 
-                            onClick={() => setNewKhataModalVisible(true)} 
-                            className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold transition shadow-sm shadow-blue-500/20"
-                        >
+                        <button onClick={() => setNewKhataModalVisible(true)} className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 px-3 rounded-lg flex items-center gap-1.5 text-xs font-bold transition shadow-sm shadow-blue-500/20">
                             <UserPlus size={14} /> New Ledger
                         </button>
                     </div>
                     <div className="relative group">
                         <Search className="absolute left-3.5 top-3 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16} />
                         <input 
-                            type="text" 
-                            placeholder="Search name or phone..." 
-                            value={searchQuery}
-                            onChange={handleSearch}
+                            type="text" placeholder="Search name or phone..." value={searchQuery} onChange={handleSearch}
                             className="w-full pl-10 pr-4 py-2.5 text-sm font-medium border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none text-slate-700 placeholder-slate-400"
                         />
                     </div>
@@ -245,21 +259,26 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                         filteredList.map((item) => {
                             const isSelected = selectedCustomer?.phone === item.phone;
                             return (
-                                <div 
-                                    key={item.phone} 
-                                    onClick={() => openCustomerLedger(item)} 
-                                    className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border-l-4 group ${
-                                        isSelected ? 'bg-blue-50/50 border-l-blue-600 border-t border-r border-b border-slate-200 shadow-sm' : 'bg-white border-l-transparent border-t border-r border-b border-transparent hover:border-slate-200 hover:shadow-sm'
-                                    }`}
+                                <div key={item.phone} onClick={() => openCustomerLedger(item)} 
+                                    className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border-l-4 group ${isSelected ? 'bg-blue-50/50 border-l-blue-600 border-t border-r border-b border-slate-200 shadow-sm' : 'bg-white border-l-transparent border-t border-r border-b border-transparent hover:border-slate-200 hover:shadow-sm'}`}
                                 >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <h3 className={`font-bold text-[15px] leading-tight ${isSelected ? 'text-blue-800' : 'text-slate-800 group-hover:text-blue-600'}`}>{item.name}</h3>
-                                            <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-medium"><Phone size={11} className={isSelected ? "text-blue-400" : "text-slate-400"}/> {item.phone}</p>
+                                    <div className="flex justify-between items-center gap-3">
+                                        <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                                            {isValidPic(item.profilePic) ? (
+                                                <img src={item.profilePic} alt={item.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-sm shrink-0" />
+                                            ) : (
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-[13px] border shrink-0 ${isSelected ? 'bg-blue-200 text-blue-800 border-blue-300' : 'bg-slate-100 text-slate-500 border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200'}`}>
+                                                    {getInitials(item.name)}
+                                                </div>
+                                            )}
+                                            <div className="overflow-hidden">
+                                                <h3 className={`font-bold text-[14px] leading-tight truncate ${isSelected ? 'text-blue-800' : 'text-slate-800 group-hover:text-blue-600'}`}>{item.name}</h3>
+                                                <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 font-medium"><Phone size={10} className={isSelected ? "text-blue-400" : "text-slate-400"}/> {item.phone}</p>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Due</p>
-                                            <p className="text-[15px] font-black text-rose-600 tabular-nums">{formatMoney(item.totalDue)}</p>
+                                        <div className="text-right shrink-0">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Due</p>
+                                            <p className="text-[14px] font-black text-rose-600 tabular-nums">{formatMoney(item.totalDue)}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -281,13 +300,18 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                     </div>
                 ) : (
                     <>
+                        {/* HEADER */}
                         <div className="bg-[#0f172a] text-white px-8 py-5 shrink-0 flex justify-between items-center shadow-lg relative overflow-hidden">
                             <div className="absolute right-0 top-0 w-64 h-64 bg-blue-600 opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
                             
-                            <div className="flex items-center gap-5 relative z-10">
-                                <div className="w-12 h-12 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center text-blue-400">
-                                    <User size={24} />
-                                </div>
+                            <div className="flex items-center gap-4 relative z-10">
+                                {isValidPic(selectedCustomer.profilePic) ? (
+                                    <img src={selectedCustomer.profilePic} alt={selectedCustomer.name} className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-600 shadow-md bg-slate-800" />
+                                ) : (
+                                    <div className="w-14 h-14 bg-slate-800 border-2 border-slate-600 shadow-md rounded-2xl flex items-center justify-center text-blue-300 font-black text-xl">
+                                        {getInitials(selectedCustomer.name)}
+                                    </div>
+                                )}
                                 <div>
                                     <h2 className="text-xl font-black tracking-tight">{selectedCustomer.name}</h2>
                                     <p className="text-slate-400 text-xs flex items-center gap-2 mt-1 font-medium"><Phone size={12}/> {selectedCustomer.phone}</p>
@@ -316,6 +340,7 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                             </div>
                         </div>
 
+                        {/* TITLE BAR */}
                         <div className="bg-white border-b border-slate-200 px-8 py-3 flex justify-between items-center shrink-0">
                             <div className="flex items-center gap-3">
                                 <FileText size={18} className="text-slate-400" />
@@ -326,90 +351,93 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto bg-slate-50/50 relative fin-scroll">
-                            <table className="w-full text-left border-collapse whitespace-nowrap">
-                                <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 z-10">
-                                    <tr>
-                                        <th className="px-8 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest w-48">Date</th>
-                                        <th className="px-8 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest">Particulars / Details</th>
-                                        <th className="px-8 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right w-40">Debit (Rs)</th>
-                                        <th className="px-8 py-4 text-[11px] font-black text-slate-500 uppercase tracking-widest text-right w-40">Credit (Rs)</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-200/60">
-                                    {displayData.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="4" className="py-24 text-center bg-white">
-                                                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                    <CheckCircle size={32} className="text-emerald-500" />
-                                                </div>
-                                                <h3 className="text-lg font-bold text-slate-800 mb-1">Account Clear</h3>
-                                                <p className="text-slate-500 text-sm font-medium">{showAllHistory ? 'कुनै रेकर्ड छैन।' : 'सबै हिसाब चुक्ता छ!'}</p>
-                                            </td>
-                                        </tr>
-                                    ) : displayData.map((item) => {
-                                        const formattedDate = toBikramSambat(item.createdAt);
-                                        const isOldDue = item.items?.length === 0;
-                                        let particulars = isOldDue ? item.remarks : (item.items?.map(p => `${p.name} (${p.qty})`).join(', ') || item.remarks);
+                        {/* TABLE HEADER & LIST (Grid Aligned) */}
+                        <div className="flex-1 overflow-y-auto bg-slate-50 relative fin-scroll flex flex-col">
+                            
+                            <div className="grid grid-cols-12 gap-4 px-12 py-4 bg-slate-100/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-10 text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                <div className="col-span-3">Date</div>
+                                <div className="col-span-6">Particulars / Details</div>
+                                <div className="col-span-3 text-right">Amount (Rs)</div>
+                            </div>
 
-                                        return (
-                                            <React.Fragment key={item._id}>
-                                                <tr className={`bg-white hover:bg-slate-50/80 transition-colors group ${isOldDue ? 'bg-amber-50/20' : ''}`}>
-                                                    <td className="px-8 py-5 text-[13px] font-bold text-slate-600 align-top">{formattedDate}</td>
-                                                    <td className="px-8 py-5 align-top">
-                                                        <p className={`text-[14px] font-medium whitespace-normal leading-relaxed max-w-2xl ${isOldDue ? 'text-amber-800 italic' : 'text-slate-800'}`}>
-                                                            {particulars}
-                                                        </p>
-                                                        {!isOldDue && <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-2">Bill ID: {item._id.substring(0, 8)}</p>}
-                                                    </td>
-                                                    <td className="px-8 py-5 text-right align-top bg-rose-50/10 group-hover:bg-rose-50/30 transition-colors">
-                                                        <span className="text-[15px] font-black text-rose-600 tabular-nums">{formatMoney(item.totalAmount)}</span>
-                                                    </td>
-                                                    <td className="px-8 py-5 text-right align-top"><span className="text-[15px] font-medium text-slate-300">-</span></td>
-                                                </tr>
-                                                
-                                                {item.paymentHistory?.map((pay, index) => (
-                                                    <tr key={index} className="bg-emerald-50/30 border-t border-emerald-100/50">
-                                                        <td className="px-8 py-3.5 text-[13px] font-semibold text-slate-500 pl-14 relative">
-                                                            <div className="absolute left-8 top-0 w-px h-6 bg-emerald-200"></div>
-                                                            <div className="absolute left-8 top-6 w-4 h-px bg-emerald-200"></div>
-                                                            {toBikramSambat(pay.date)}
-                                                        </td>
-                                                        <td className="px-8 py-3.5">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="w-5 h-5 rounded bg-emerald-100 text-emerald-600 flex items-center justify-center"><ArrowDownRight size={12} strokeWidth={3}/></span>
-                                                                <span className="text-[13px] font-bold text-emerald-700">{pay.method} Payment Received</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-8 py-3.5 text-right"><span className="text-[14px] font-medium text-slate-300">-</span></td>
-                                                        <td className="px-8 py-3.5 text-right"><span className="text-[14px] font-black text-emerald-600 tabular-nums">{formatMoney(pay.amount)}</span></td>
-                                                    </tr>
-                                                ))}
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                            <div className="p-6 space-y-4">
+                                {displayData.length === 0 ? (
+                                    <div className="py-16 text-center bg-white rounded-xl border border-slate-200 shadow-sm">
+                                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <CheckCircle size={32} className="text-emerald-500" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-slate-800 mb-1">Account Clear</h3>
+                                        <p className="text-slate-500 text-sm font-medium">{showAllHistory ? 'कुनै रेकर्ड छैन।' : 'सबै हिसाब चुक्ता छ!'}</p>
+                                    </div>
+                                ) : displayData.map((item) => {
+                                    const formattedDate = toBikramSambat(item.createdAt);
+                                    const isOldDue = item.items?.length === 0;
+
+                                    let particulars = '';
+                                    if (!isOldDue && item.items && item.items.length > 0) {
+                                        const itemsStr = item.items.map(prod => `${prod.name} (${prod.qty} ${prod.displayUnit || prod.unit || ''})`.trim()).join(', ');
+                                        const subTotal = item.items.reduce((acc, prod) => acc + (prod.finalPrice || prod.price || 0), 0);
+                                        const deliveryCharge = Math.max(0, item.totalAmount - subTotal);
+                                        
+                                        if (deliveryCharge > 0) {
+                                            particulars = `${itemsStr}\n[+ डेलिभरी चार्ज Rs ${deliveryCharge}]`;
+                                        } else {
+                                            particulars = itemsStr;
+                                        }
+                                    } else {
+                                        particulars = item.remarks || `सामान खरिद`;
+                                    }
+
+                                    return (
+                                        <div key={item._id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+                                            
+                                            <div className={`grid grid-cols-12 gap-4 items-center px-6 py-5 ${isOldDue ? 'bg-amber-50/30' : ''}`}>
+                                                <div className="col-span-3 text-[13px] font-bold text-slate-600">{formattedDate}</div>
+                                                <div className={`col-span-6 text-[14px] font-medium whitespace-pre-line leading-relaxed ${isOldDue ? 'text-amber-800 italic' : 'text-slate-800'}`}>
+                                                    {particulars}
+                                                    {!isOldDue && <span className="block text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-1.5">Bill ID: {item._id.substring(0, 8)}</span>}
+                                                </div>
+                                                <div className="col-span-3 text-right text-[15px] font-black text-rose-600 tabular-nums">
+                                                    Rs {formatMoney(item.totalAmount)}
+                                                </div>
+                                            </div>
+
+                                            {item.paymentHistory?.map((pay, index) => (
+                                                <div key={index} className="grid grid-cols-12 gap-4 items-center px-6 py-4 bg-[#f0fdf4] border-t border-[#dcfce3]">
+                                                    <div className="col-span-3 text-[12px] font-semibold text-slate-500 relative flex items-center gap-2">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                                                        {toBikramSambat(pay.date)}
+                                                    </div>
+                                                    <div className="col-span-6 text-[13px] font-bold text-[#16a34a] flex items-center gap-1.5">
+                                                        {pay.method === 'ESEWA' ? '🟩 eSewa' : pay.method === 'KHALTI' ? '🟪 Khalti' : '💵 Cash'} भुक्तानी
+                                                    </div>
+                                                    <div className="col-span-3 text-right text-[14px] font-black text-[#16a34a] tabular-nums">
+                                                        (- Rs {formatMoney(pay.amount)})
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </>
                 )}
             </div>
 
             {/* ========================================== */}
-            {/* 🌟 1. CREATE NEW KHATA MODAL (For Offline/New OR Existing Users) */}
+            {/* 1. CREATE NEW KHATA MODAL (With Registration Fields) */}
             {/* ========================================== */}
             {newKhataModalVisible && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-visible shadow-2xl border border-slate-200">
-                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+                    <div className="bg-white rounded-2xl w-full max-w-md overflow-y-auto max-h-[90vh] shadow-2xl border border-slate-200">
+                        <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50 rounded-t-2xl sticky top-0 z-10">
                             <h3 className="text-[15px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
                                 <UserPlus size={18} className="text-blue-600"/> Create New Ledger
                             </h3>
                             <button onClick={() => setNewKhataModalVisible(false)} className="text-slate-400 hover:text-rose-500 bg-white rounded-full p-1 border border-slate-200 transition-colors"><X size={16}/></button>
                         </div>
                         <div className="p-6">
-                            
-                            {/* 🌟 SEARCH APP USER (NEW FEATURE) */}
                             <div className="relative mb-5">
                                 <label className="block text-[11px] font-black text-blue-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
                                     <Search size={12} /> एपको ग्राहक खोज्नुहोस् (Optional)
@@ -425,12 +453,15 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                                 {showUserDropdown && filteredUsers.length > 0 && (
                                     <div className="absolute left-0 right-0 top-[60px] bg-white border border-slate-200 rounded-xl shadow-xl max-h-40 overflow-y-auto z-50">
                                         {filteredUsers.map(u => (
-                                            <div 
-                                                key={u._id} 
-                                                onClick={() => selectExistingUser(u)}
-                                                className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center transition"
-                                            >
-                                                <span className="font-bold text-sm text-slate-800">{u.name}</span>
+                                            <div key={u._id} onClick={() => selectExistingUser(u)} className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0 flex justify-between items-center transition">
+                                                <div className="flex items-center gap-2">
+                                                    {isValidPic(u.profilePic) ? (
+                                                        <img src={u.profilePic} alt="" className="w-6 h-6 rounded-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">{getInitials(u.name)}</div>
+                                                    )}
+                                                    <span className="font-bold text-sm text-slate-800">{u.name}</span>
+                                                </div>
                                                 <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{u.phone}</span>
                                             </div>
                                         ))}
@@ -448,62 +479,51 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Name (नाम) *</label>
-                                        <input 
-                                            type="text" 
-                                            value={newKhataForm.name}
-                                            onChange={(e) => setNewKhataForm({...newKhataForm, name: e.target.value})}
-                                            className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-sm font-bold text-slate-800"
-                                        />
+                                        <input type="text" value={newKhataForm.name} onChange={(e) => setNewKhataForm({...newKhataForm, name: e.target.value, isExistingUser: false})} className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-sm font-bold text-slate-800" />
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Phone (फोन) *</label>
-                                        <input 
-                                            type="text" 
-                                            value={newKhataForm.phone}
-                                            onChange={(e) => setNewKhataForm({...newKhataForm, phone: e.target.value})}
-                                            className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-sm font-bold text-slate-800"
-                                        />
+                                        <input type="text" value={newKhataForm.phone} onChange={(e) => setNewKhataForm({...newKhataForm, phone: e.target.value, isExistingUser: false})} className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-sm font-bold text-slate-800" />
                                     </div>
                                 </div>
                                 
+                                {/* 🌟 NAYA: Registration Fields (Email, Address, Landmark) */}
+                                {!newKhataForm.isExistingUser && (
+                                    <div className="space-y-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-4">
+                                        <p className="text-xs font-bold text-blue-700 mb-2">नयाँ ग्राहकको अटो-रजिस्ट्रेसन विवरण (डिफल्ट पासवर्ड: मोबाइल नम्बर)</p>
+                                        <div className="relative">
+                                            <Mail className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                            <input type="email" placeholder="Gmail / Email Address" value={newKhataForm.email} onChange={(e) => setNewKhataForm({...newKhataForm, email: e.target.value})} className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500" />
+                                        </div>
+                                        <div className="relative">
+                                            <MapPin className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                            <input type="text" placeholder="Delivery Address (उदा: चाबहिल)" value={newKhataForm.address} onChange={(e) => setNewKhataForm({...newKhataForm, address: e.target.value})} className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500" />
+                                        </div>
+                                        <div className="relative">
+                                            <Navigation className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                            <input type="text" placeholder="Landmark (नजिकको चिनिने ठाउँ)" value={newKhataForm.landmark} onChange={(e) => setNewKhataForm({...newKhataForm, landmark: e.target.value})} className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500" />
+                                        </div>
+                                    </div>
+                                )}
+                                
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Opening Balance (पुरानो उधारो) *</label>
-                                    <input 
-                                        type="number" 
-                                        value={newKhataForm.amount}
-                                        onChange={(e) => setNewKhataForm({...newKhataForm, amount: e.target.value})}
-                                        placeholder="0.00"
-                                        className="w-full text-right text-2xl font-black text-rose-600 border-2 border-slate-200 rounded-xl py-2 px-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none tabular-nums"
-                                    />
+                                    <input type="number" value={newKhataForm.amount} onChange={(e) => setNewKhataForm({...newKhataForm, amount: e.target.value})} placeholder="0.00" className="w-full text-right text-2xl font-black text-rose-600 border-2 border-slate-200 rounded-xl py-2 px-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none tabular-nums" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">मिति (Date)</label>
-                                        <input 
-                                            type="date" 
-                                            value={newKhataForm.date}
-                                            onChange={(e) => setNewKhataForm({...newKhataForm, date: e.target.value})}
-                                            className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-bold text-slate-700"
-                                        />
+                                        <input type="date" value={newKhataForm.date} onChange={(e) => setNewKhataForm({...newKhataForm, date: e.target.value})} className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-bold text-slate-700" />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">विवरण (Remarks)</label>
-                                        <input 
-                                            type="text" 
-                                            value={newKhataForm.remarks}
-                                            onChange={(e) => setNewKhataForm({...newKhataForm, remarks: e.target.value})}
-                                            className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-bold text-slate-700"
-                                        />
+                                        <input type="text" value={newKhataForm.remarks} onChange={(e) => setNewKhataForm({...newKhataForm, remarks: e.target.value})} className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xs font-bold text-slate-700" />
                                     </div>
                                 </div>
                             </div>
                             
-                            <button 
-                                onClick={() => handleAddOldDue(true)} 
-                                disabled={submittingOldDue}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
-                            >
-                                {submittingOldDue ? "Creating..." : <><CheckCircle size={18} /> Create Account</>}
+                            <button onClick={() => handleAddOldDue(true)} disabled={submittingOldDue} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20">
+                                {submittingOldDue ? "Creating..." : <><CheckCircle size={18} /> Create Account & Ledger</>}
                             </button>
                         </div>
                     </div>
@@ -511,7 +531,7 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
             )}
 
             {/* ========================================== */}
-            {/* 2. OLD DUE MODAL (For Existing Selected Customer) */}
+            {/* 2. OLD DUE MODAL */}
             {/* ========================================== */}
             {oldDueModalVisible && selectedCustomer && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -526,43 +546,22 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                             <div className="space-y-4 mb-6">
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Purano Udharo Amount (Rs) *</label>
-                                    <input 
-                                        type="number" 
-                                        value={oldDueForm.amount}
-                                        onChange={(e) => setOldDueForm({...oldDueForm, amount: e.target.value})}
-                                        placeholder="0.00"
-                                        className="w-full text-right text-2xl font-black text-slate-800 border-2 border-slate-200 rounded-xl py-2 px-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none tabular-nums"
-                                        autoFocus
-                                    />
+                                    <input type="number" value={oldDueForm.amount} onChange={(e) => setOldDueForm({...oldDueForm, amount: e.target.value})} placeholder="0.00" className="w-full text-right text-2xl font-black text-slate-800 border-2 border-slate-200 rounded-xl py-2 px-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none tabular-nums" autoFocus />
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Date (मिति)</label>
                                     <div className="relative">
                                         <Calendar className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                                        <input 
-                                            type="date" 
-                                            value={oldDueForm.date}
-                                            onChange={(e) => setOldDueForm({...oldDueForm, date: e.target.value})}
-                                            className="w-full pl-10 pr-4 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none font-medium text-slate-700"
-                                        />
+                                        <input type="date" value={oldDueForm.date} onChange={(e) => setOldDueForm({...oldDueForm, date: e.target.value})} className="w-full pl-10 pr-4 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none font-medium text-slate-700" />
                                     </div>
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Particulars (विवरण)</label>
-                                    <input 
-                                        type="text" 
-                                        value={oldDueForm.remarks}
-                                        onChange={(e) => setOldDueForm({...oldDueForm, remarks: e.target.value})}
-                                        className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none font-medium text-slate-700"
-                                    />
+                                    <input type="text" value={oldDueForm.remarks} onChange={(e) => setOldDueForm({...oldDueForm, remarks: e.target.value})} className="w-full px-4 py-2 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none font-medium text-slate-700" />
                                 </div>
                             </div>
                             
-                            <button 
-                                onClick={() => handleAddOldDue(false)} 
-                                disabled={submittingOldDue}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
-                            >
+                            <button onClick={() => handleAddOldDue(false)} disabled={submittingOldDue} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20">
                                 {submittingOldDue ? "Saving..." : <><CheckCircle size={18} /> Save Old Record</>}
                             </button>
                         </div>
@@ -587,20 +586,9 @@ export default function UdharoKhata({ API_URL, showToast, users = [] }) {
                             </div>
                             
                             <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">Amount Received (Rs)</label>
-                            <input 
-                                type="number" 
-                                value={cashAmount}
-                                onChange={(e) => setCashAmount(e.target.value)}
-                                placeholder="0.00"
-                                className="w-full text-right text-3xl font-black text-slate-800 border-2 border-slate-200 rounded-xl py-3 px-4 mb-8 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all tabular-nums"
-                                autoFocus
-                            />
+                            <input type="number" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} placeholder="0.00" className="w-full text-right text-3xl font-black text-slate-800 border-2 border-slate-200 rounded-xl py-3 px-4 mb-8 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all tabular-nums" autoFocus />
                             
-                            <button 
-                                onClick={handleReceiveCash} 
-                                disabled={submitting}
-                                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-slate-900/20"
-                            >
+                            <button onClick={handleReceiveCash} disabled={submitting} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-slate-900/20">
                                 {submitting ? "Processing..." : <><CheckCircle size={18} /> Confirm Payment</>}
                             </button>
                         </div>

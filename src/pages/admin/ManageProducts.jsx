@@ -11,7 +11,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
     name: '', category: categories[0]?.name || '', description: '',
     pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }],
     image: null, isEditing: false, editId: null,
-    isHotSale: false // 🟢 NAYA UPDATE: Hot Sale State
+    isHotSale: false,
+    inStock: true // 🟢 NAYA UPDATE: Stock status (Default: True)
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +68,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
     formData.append('category', productForm.category);
     formData.append('description', productForm.description);
     formData.append('pricing', JSON.stringify(validPricing));
-    formData.append('isHotSale', productForm.isHotSale); // 🟢 NAYA UPDATE: Sending to Backend
+    formData.append('isHotSale', productForm.isHotSale); 
+    formData.append('inStock', productForm.inStock); // 🟢 NAYA UPDATE: Sending to Backend
 
     if (productForm.image instanceof File || productForm.image instanceof Blob) formData.append('image', productForm.image);
 
@@ -99,7 +101,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
       image: null, 
       isEditing: true, 
       editId: prod._id,
-      isHotSale: prod.isHotSale || false // 🟢 NAYA UPDATE: Extracting from existing product
+      isHotSale: prod.isHotSale || false, 
+      inStock: prod.inStock !== undefined ? prod.inStock : true // 🟢 NAYA UPDATE
     });
     setImagePreview(prod.image);
     if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -123,7 +126,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
       name: '', category: categories[0]?.name || '', description: '', 
       pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }], 
       image: null, isEditing: false, editId: null, 
-      isHotSale: false // 🟢 NAYA UPDATE: Resetting State
+      isHotSale: false,
+      inStock: true // 🟢 NAYA UPDATE
     });
     setImagePreview(null);
   };
@@ -199,19 +203,34 @@ export default function ManageProducts({ products, categories, measureUnits = []
             <textarea value={productForm.description} onChange={(e) => setProductForm({...productForm, description: e.target.value})} rows="2" className="w-full p-3 border rounded-xl text-sm"></textarea>
           </div>
           
-          {/* 🟢 NAYA UPDATE: Hot Sale Checkbox UI */}
-          <div className="flex items-center gap-2 bg-orange-50/50 p-3 rounded-xl border border-orange-100 mt-1">
-            <input 
-              type="checkbox" 
-              id="hotSale" 
-              checked={productForm.isHotSale} 
-              onChange={(e) => setProductForm({...productForm, isHotSale: e.target.checked})} 
-              className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500 cursor-pointer" 
-            />
-            <label htmlFor="hotSale" className="font-bold text-gray-700 text-sm cursor-pointer flex items-center gap-1.5">
-              <span className="bg-red-100 text-red-600 px-1 rounded text-xs">🔥</span> 
-              Mark as Hot Sale / दैनिक आवश्यक
-            </label>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            {/* Hot Sale Checkbox */}
+            <div className="flex-1 flex items-center gap-2 bg-orange-50/50 p-3 rounded-xl border border-orange-100">
+              <input 
+                type="checkbox" 
+                id="hotSale" 
+                checked={productForm.isHotSale} 
+                onChange={(e) => setProductForm({...productForm, isHotSale: e.target.checked})} 
+                className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500 cursor-pointer" 
+              />
+              <label htmlFor="hotSale" className="font-bold text-gray-700 text-xs cursor-pointer flex items-center gap-1">
+                <span className="bg-red-100 text-red-600 px-1 rounded">🔥</span> Hot Sale
+              </label>
+            </div>
+
+            {/* 🟢 NAYA UPDATE: In Stock Checkbox */}
+            <div className={`flex-1 flex items-center gap-2 p-3 rounded-xl border ${productForm.inStock ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
+              <input 
+                type="checkbox" 
+                id="inStock" 
+                checked={productForm.inStock} 
+                onChange={(e) => setProductForm({...productForm, inStock: e.target.checked})} 
+                className="w-4 h-4 text-green-600 rounded focus:ring-green-500 cursor-pointer" 
+              />
+              <label htmlFor="inStock" className="font-bold text-gray-700 text-xs cursor-pointer">
+                {productForm.inStock ? '✅ In Stock' : '❌ Out of Stock'}
+              </label>
+            </div>
           </div>
           
           <div>
@@ -263,12 +282,13 @@ export default function ManageProducts({ products, categories, measureUnits = []
                 <tr key={prod._id} className={`border-b hover:bg-blue-50 transition-colors ${productForm.editId === prod._id ? 'bg-blue-50/70 border-l-4 border-l-blue-500' : ''}`}>
                   <td className="p-4">
                       <div className="flex items-center gap-3">
-                          <img src={prod.image} alt={prod.name} className="w-12 h-12 rounded-lg object-cover border shadow-sm" />
+                          <img src={prod.image} alt={prod.name} className={`w-12 h-12 rounded-lg object-cover border shadow-sm ${prod.inStock === false ? 'opacity-50 grayscale' : ''}`} />
                           <div>
                               <div className="font-bold text-gray-800 flex items-center gap-1">
                                 {prod.name}
-                                {/* 🟢 NAYA UPDATE: Table Badge for Hot Sale */}
                                 {prod.isHotSale && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full" title="Hot Sale">🔥</span>}
+                                {/* 🟢 NAYA UPDATE: Out of stock badge */}
+                                {prod.inStock === false && <span className="text-[10px] bg-gray-500 text-white px-1.5 py-0.5 rounded-full ml-1">Out of Stock</span>}
                               </div>
                               <span className="text-gray-500 text-xs font-semibold">{prod.category}</span>
                           </div>
