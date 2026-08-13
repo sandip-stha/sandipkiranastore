@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Bell, LayoutDashboard, Lock, LogOut, Package, FolderPlus, ShoppingBag, MessageSquare, Users, Truck, Store, BookOpen } from 'lucide-react';
+// 🌟 Settings आइकन इम्पोर्ट गरियो
+import { Bell, LayoutDashboard, Lock, LogOut, Package, FolderPlus, ShoppingBag, MessageSquare, Users, Truck, Store, BookOpen, Settings } from 'lucide-react';
 
 // Import all child components
 import ManageDealers from './ManageDealers';
@@ -9,8 +10,9 @@ import ManageProducts from './ManageProducts';
 import ManageCategories from './ManageCategories';
 import Gunaso from './Gunaso';
 import UsersList from './UsersList';
-import PosBilling from './PosBilling'; // 🌟 नयाँ कम्पोनेन्ट इम्पोर्ट
+import PosBilling from './PosBilling'; 
 import UdharoKhata from './UdharoKhata';
+import ManageSettings from './ManageSettings'; // 🌟 नयाँ Settings कम्पोनेन्ट इम्पोर्ट गरियो
 
 const API_URL = 'https://kiranastore-luig.onrender.com';
 
@@ -28,7 +30,6 @@ export default function AdminDashboard() {
   const [gunasos, setGunasos] = useState([]);
   const [users, setUsers] = useState([]);
   
-  // 🌟 १. Measure Units को लागि नयाँ State थपिएको
   const [measureUnits, setMeasureUnits] = useState([]);
   
   const [toast, setToast] = useState({ isVisible: false, message: '', type: 'success' });
@@ -49,7 +50,6 @@ export default function AdminDashboard() {
   const fetchGunasos = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      // 🌟 सच्याइएको: /api/admin/gunaso को ठाउँमा /api/gunaso/admin बनाइएको
       const res = await axios.get(`${API_URL}/api/gunaso/admin`, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
@@ -74,8 +74,6 @@ export default function AdminDashboard() {
     } catch (error) { console.error("Dealers fetch error:", error); }
   };
 
-  // 🌟 २. fetchData फङ्सनमा measure-units पनि तान्न (Fetch गर्न) थपिएको
-  // 🌟 Safe fetchData: Measure units को API फेल भए पनि Products र Categories नरोकिने!
   const fetchData = async () => {
       try {
           const [catRes, prodRes] = await Promise.all([
@@ -85,13 +83,12 @@ export default function AdminDashboard() {
           setCategories(catRes.data);
           setProducts(prodRes.data);
 
-          // 🌟 सिधै Backend (Database) बाट Measure Units ल्याउने (कुनै डिफल्ट नराखेको)
           try {
               const unitRes = await axios.get(`${API_URL}/api/measure-units`);
               setMeasureUnits(unitRes.data || []);
           } catch (unitErr) {
               console.error("⚠️ Measure Units API लोड हुन सकेन:", unitErr.message);
-              setMeasureUnits([]); // API नचले खाली राख्ने
+              setMeasureUnits([]); 
           }
 
           fetchOrders();
@@ -173,7 +170,7 @@ export default function AdminDashboard() {
         <h2 className="text-2xl font-black mb-10 flex items-center gap-3 border-b border-gray-700 pb-6">
           <LayoutDashboard size={28} className="text-yellow-400" /> Admin Panel
         </h2>
-        <ul className="space-y-3 flex-1">
+        <ul className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-2">
           <li onClick={() => setActiveTab('orders')} className={`cursor-pointer p-4 rounded-xl flex items-center justify-between font-semibold transition ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
             <div className="flex items-center gap-3"><ShoppingBag size={22} /> Orders</div>
             {pendingOrdersCount > 0 && <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full animate-pulse">{pendingOrdersCount} New</span>}
@@ -200,8 +197,12 @@ export default function AdminDashboard() {
           <li onClick={() => setActiveTab('khata')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'khata' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
               <BookOpen size={22} /> Udharo Khata
           </li>
+          {/* 🌟 Settings Tab थपियो */}
+          <li onClick={() => setActiveTab('settings')} className={`cursor-pointer p-4 rounded-xl flex items-center gap-3 font-semibold transition ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'}`}>
+              <Settings size={22} /> App Settings
+          </li>
         </ul>
-        <div className="border-t border-gray-700 pt-6">
+        <div className="border-t border-gray-700 pt-6 mt-2">
           <button onClick={handleLogout} className="w-full cursor-pointer p-4 rounded-xl text-red-400 hover:text-white hover:bg-red-500/20 flex items-center justify-center gap-2 font-bold transition"><LogOut size={20} /> Logout</button>
         </div>
       </div>
@@ -219,7 +220,9 @@ export default function AdminDashboard() {
                activeTab === 'products' ? 'Manage Products 📦' : 
                activeTab === 'dealers' ? 'Dealers & Suppliers 🚚' : 
                activeTab === 'gunaso' ? 'Customer Gunaso 💬' : 
-               activeTab === 'users' ? 'Registered Customers 👥' : 'Manage Categories 📁'}
+               activeTab === 'users' ? 'Registered Customers 👥' : 
+               activeTab === 'settings' ? 'App Settings ⚙️' : // 🌟 Title अपडेट गरियो
+               'Manage Categories 📁'}
             </h1>
             
             {activeTab === 'orders' && pendingOrdersCount > 0 && (
@@ -237,7 +240,6 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          {/* 🌟 ३. यहाँ तल Products र Categories मा measureUnits पनि पास गरिएको छ */}
           <div className="w-full block">
             {activeTab === 'orders' && <Orders orders={orders} fetchOrders={fetchOrders} API_URL={API_URL} showToast={showToast} />}
             {activeTab === 'products' && <ManageProducts products={products} categories={categories} measureUnits={measureUnits} fetchData={fetchData} API_URL={API_URL} showToast={showToast} />}
@@ -247,6 +249,8 @@ export default function AdminDashboard() {
             {activeTab === 'dealers' && <ManageDealers dealers={dealers} fetchDealers={fetchDealers} API_URL={API_URL} showToast={showToast} />}
             {activeTab === 'pos' && <PosBilling products={products} users={users} API_URL={API_URL} showToast={showToast} fetchOrders={fetchOrders} />}
             {activeTab === 'khata' && <UdharoKhata API_URL={API_URL} showToast={showToast} users={users} />}
+            {/* 🌟 ManageSettings कम्पोनेन्ट देखाइयो */}
+            {activeTab === 'settings' && <ManageSettings API_URL={API_URL} showToast={showToast} />}
           </div>
 
         </div>

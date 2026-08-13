@@ -12,7 +12,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
     pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }],
     image: null, isEditing: false, editId: null,
     isHotSale: false,
-    inStock: true // 🟢 NAYA UPDATE: Stock status (Default: True)
+    inStock: true,
+    isFreeDelivery: false // 🟢 NAYA UPDATE: Free Delivery State
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +70,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
     formData.append('description', productForm.description);
     formData.append('pricing', JSON.stringify(validPricing));
     formData.append('isHotSale', productForm.isHotSale); 
-    formData.append('inStock', productForm.inStock); // 🟢 NAYA UPDATE: Sending to Backend
+    formData.append('inStock', productForm.inStock); 
+    formData.append('isFreeDelivery', productForm.isFreeDelivery); // 🟢 NAYA UPDATE
 
     if (productForm.image instanceof File || productForm.image instanceof Blob) formData.append('image', productForm.image);
 
@@ -102,7 +104,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
       isEditing: true, 
       editId: prod._id,
       isHotSale: prod.isHotSale || false, 
-      inStock: prod.inStock !== undefined ? prod.inStock : true // 🟢 NAYA UPDATE
+      inStock: prod.inStock !== undefined ? prod.inStock : true,
+      isFreeDelivery: prod.isFreeDelivery || false // 🟢 NAYA UPDATE
     });
     setImagePreview(prod.image);
     if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -127,7 +130,8 @@ export default function ManageProducts({ products, categories, measureUnits = []
       pricing: [{ measureQty: '', measureUnit: defaultUnit, price: '' }], 
       image: null, isEditing: false, editId: null, 
       isHotSale: false,
-      inStock: true // 🟢 NAYA UPDATE
+      inStock: true,
+      isFreeDelivery: false // 🟢 NAYA UPDATE
     });
     setImagePreview(null);
   };
@@ -203,9 +207,10 @@ export default function ManageProducts({ products, categories, measureUnits = []
             <textarea value={productForm.description} onChange={(e) => setProductForm({...productForm, description: e.target.value})} rows="2" className="w-full p-3 border rounded-xl text-sm"></textarea>
           </div>
           
-          <div className="flex flex-col gap-3 sm:flex-row">
+          {/* 🌟 NAYA UPDATE: Settings Grid for Checkboxes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
             {/* Hot Sale Checkbox */}
-            <div className="flex-1 flex items-center gap-2 bg-orange-50/50 p-3 rounded-xl border border-orange-100">
+            <div className="flex items-center gap-2 bg-orange-50/50 p-3 rounded-xl border border-orange-100">
               <input 
                 type="checkbox" 
                 id="hotSale" 
@@ -218,8 +223,22 @@ export default function ManageProducts({ products, categories, measureUnits = []
               </label>
             </div>
 
-            {/* 🟢 NAYA UPDATE: In Stock Checkbox */}
-            <div className={`flex-1 flex items-center gap-2 p-3 rounded-xl border ${productForm.inStock ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
+            {/* Free Delivery Checkbox */}
+            <div className={`flex items-center gap-2 p-3 rounded-xl border ${productForm.isFreeDelivery ? 'bg-blue-50/50 border-blue-100' : 'bg-gray-50 border-gray-200'}`}>
+              <input 
+                type="checkbox" 
+                id="freeDelivery" 
+                checked={productForm.isFreeDelivery} 
+                onChange={(e) => setProductForm({...productForm, isFreeDelivery: e.target.checked})} 
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer" 
+              />
+              <label htmlFor="freeDelivery" className="font-bold text-gray-700 text-xs cursor-pointer flex items-center gap-1">
+                <span className="bg-blue-100 text-blue-600 px-1 rounded">🚚</span> Free Delivery
+              </label>
+            </div>
+
+            {/* In Stock Checkbox (Spans full width in small screens, 1 col in sm) */}
+            <div className={`sm:col-span-2 flex items-center gap-2 p-3 rounded-xl border ${productForm.inStock ? 'bg-green-50/50 border-green-100' : 'bg-red-50/50 border-red-100'}`}>
               <input 
                 type="checkbox" 
                 id="inStock" 
@@ -228,7 +247,7 @@ export default function ManageProducts({ products, categories, measureUnits = []
                 className="w-4 h-4 text-green-600 rounded focus:ring-green-500 cursor-pointer" 
               />
               <label htmlFor="inStock" className="font-bold text-gray-700 text-xs cursor-pointer">
-                {productForm.inStock ? '✅ In Stock' : '❌ Out of Stock'}
+                {productForm.inStock ? '✅ Product is In Stock' : '❌ Out of Stock (Disabled in App)'}
               </label>
             </div>
           </div>
@@ -284,10 +303,11 @@ export default function ManageProducts({ products, categories, measureUnits = []
                       <div className="flex items-center gap-3">
                           <img src={prod.image} alt={prod.name} className={`w-12 h-12 rounded-lg object-cover border shadow-sm ${prod.inStock === false ? 'opacity-50 grayscale' : ''}`} />
                           <div>
-                              <div className="font-bold text-gray-800 flex items-center gap-1">
+                              <div className="font-bold text-gray-800 flex items-center flex-wrap gap-1">
                                 {prod.name}
                                 {prod.isHotSale && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full" title="Hot Sale">🔥</span>}
-                                {/* 🟢 NAYA UPDATE: Out of stock badge */}
+                                {/* 🟢 NAYA UPDATE: Free Delivery Badge in Table */}
+                                {prod.isFreeDelivery && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full" title="Free Delivery">🚚 Free</span>}
                                 {prod.inStock === false && <span className="text-[10px] bg-gray-500 text-white px-1.5 py-0.5 rounded-full ml-1">Out of Stock</span>}
                               </div>
                               <span className="text-gray-500 text-xs font-semibold">{prod.category}</span>

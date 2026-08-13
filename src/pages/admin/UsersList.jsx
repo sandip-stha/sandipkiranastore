@@ -1,18 +1,17 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-// 🌟 NAYA: Search icon थपिएको छ
-import { Edit, Trash2, Camera, User, CheckCircle, Search } from 'lucide-react';
+import { Edit, Trash2, Camera, User, CheckCircle, Search, Wallet } from 'lucide-react'; // 🌟 Wallet icon थपियो
 
 export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
   const [userForm, setUserForm] = useState({ 
     name: '', phone: '', email: '', address: '', landmark: '', 
-    adminRemark: '', profilePic: '', isVerified: false, isEditing: false, editId: null 
+    adminRemark: '', profilePic: '', isVerified: false, 
+    khataAccess: false, // 🌟 NAYA UPDATE: State थपियो
+    isEditing: false, editId: null 
   });
   
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // 🌟 NAYA: Search को लागि State
   const [searchTerm, setSearchTerm] = useState('');
 
   const getInitials = (name) => {
@@ -90,6 +89,7 @@ export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
       adminRemark: user.adminRemark || '', 
       profilePic: user.profilePic || '', 
       isVerified: user.isVerified || false,
+      khataAccess: user.khataAccess || false, // 🌟 NAYA UPDATE
       isEditing: true, 
       editId: user._id 
     });
@@ -98,11 +98,10 @@ export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
   };
 
   const resetForm = () => {
-    setUserForm({ name: '', phone: '', email: '', address: '', landmark: '', adminRemark: '', profilePic: '', isVerified: false, isEditing: false, editId: null });
+    setUserForm({ name: '', phone: '', email: '', address: '', landmark: '', adminRemark: '', profilePic: '', isVerified: false, khataAccess: false, isEditing: false, editId: null });
     setSelectedImageFile(null);
   };
 
-  // 🌟 NAYA: Search फिल्टर गर्ने लजिक
   const filteredUsers = users.filter(u => 
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     u.phone.includes(searchTerm)
@@ -111,7 +110,6 @@ export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
   return (
     <div className="space-y-8">
       
-      {/* ---------------- SEARCH BAR ---------------- */}
       {!userForm.isEditing && (
         <div className="relative max-w-2xl mx-auto mb-8">
           <Search className="absolute left-4 top-3.5 text-blue-500" size={22} />
@@ -125,7 +123,6 @@ export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
         </div>
       )}
 
-      {/* ---------------- EDIT CUSTOMER FORM ---------------- */}
       {userForm.isEditing && (
         <div className="bg-white p-6 md:p-8 rounded-3xl shadow-lg border border-blue-200 relative overflow-hidden">
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-50 rounded-full blur-3xl pointer-events-none"></div>
@@ -172,20 +169,29 @@ export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
               <input type="text" value={userForm.adminRemark} onChange={(e) => setUserForm({...userForm, adminRemark: e.target.value})} className="w-full p-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="e.g. सधैं उधारो लग्ने, पसलको छेउको दाई..." />
             </div>
 
-            <div className="md:col-span-2 flex items-center justify-between bg-green-50/50 p-5 rounded-2xl border border-green-200 shadow-sm mt-2">
-              <div>
-                <label className="block text-green-700 font-bold text-sm">Verify Customer</label>
-                <p className="text-xs text-gray-500 font-medium mt-1">Verified ग्राहकले आफैं फोटो फेर्न पाउँदैनन्।</p>
+            {/* 🌟 NAYA UPDATE: Khata Access Toggle */}
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+              <div className="flex items-center justify-between bg-green-50/50 p-5 rounded-2xl border border-green-200 shadow-sm">
+                <div>
+                  <label className="block text-green-700 font-bold text-sm">Verify Customer</label>
+                  <p className="text-xs text-gray-500 font-medium mt-1">Verified ले आफैं फोटो फेर्न पाउँदैनन्।</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={userForm.isVerified} onChange={(e) => setUserForm({ ...userForm, isVerified: e.target.checked })}/>
+                  <div className="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={userForm.isVerified}
-                  onChange={(e) => setUserForm({ ...userForm, isVerified: e.target.checked })}
-                />
-                <div className="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-              </label>
+
+              <div className="flex items-center justify-between bg-orange-50/50 p-5 rounded-2xl border border-orange-200 shadow-sm">
+                <div>
+                  <label className="block text-orange-700 font-bold text-sm">Khata Access</label>
+                  <p className="text-xs text-gray-500 font-medium mt-1">उधारो खाता (App मा) हेर्न दिने कि नदिने?</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={userForm.khataAccess} onChange={(e) => setUserForm({ ...userForm, khataAccess: e.target.checked })}/>
+                  <div className="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+                </label>
+              </div>
             </div>
             
             <div className="md:col-span-2 flex gap-4 mt-2">
@@ -210,7 +216,6 @@ export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
             <div key={user._id} className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 flex flex-col gap-5 relative overflow-hidden transition-all hover:shadow-lg group">
               <div className="flex justify-between items-start gap-4">
                 
-                {/* 🌟 NAYA: Photo size increased from w-14 to w-20/w-24 for better visibility */}
                 <div className="flex items-center gap-5 flex-1">
                   {user.profilePic ? (
                     <img src={user.profilePic} alt={user.name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-gray-50 shadow-md shrink-0 bg-gray-100" />
@@ -239,6 +244,13 @@ export default function UsersList({ users, fetchUsers, API_URL, showToast }) {
                 <p className="font-bold text-slate-700 text-sm mb-1.5 flex items-start gap-2">📍 {user.address}</p>
                 <p className="text-xs text-slate-500 font-bold ml-6">Landmark: <span className="text-blue-600">{user.landmark}</span></p>
                 
+                {/* 🌟 NAYA UPDATE: Show if they have Khata Access */}
+                {user.khataAccess && (
+                  <p className="text-xs text-orange-600 font-bold mt-2 ml-6 flex items-center gap-1">
+                    <Wallet size={12} /> Khata Access Enabled
+                  </p>
+                )}
+
                 {user.adminRemark && (
                   <div className="mt-3 pt-3 border-t border-slate-200/80">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><User size={12}/> Admin Remarks</p>
