@@ -101,16 +101,27 @@ export default function Home() {
           <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar snap-x">
             {hotSaleProducts.map(product => {
               const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A', measureQty: 'N/A' };
+              const isOutOfStock = !product.inStock;
+
               return (
                 <div 
                   key={product._id} 
-                  onClick={() => setSelectedProduct(product)}
-                  className="snap-start shrink-0 w-36 sm:w-44 bg-gradient-to-b from-orange-50 to-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 border border-orange-100 flex flex-col group cursor-pointer hover:-translate-y-1"
+                  onClick={() => !isOutOfStock && setSelectedProduct(product)}
+                  className={`snap-start shrink-0 w-36 sm:w-44 bg-gradient-to-b from-orange-50 to-white rounded-2xl shadow-sm transition-all duration-300 border border-orange-100 flex flex-col group ${isOutOfStock ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-md hover:-translate-y-1'}`}
                 >
                   <div className="relative p-2 h-28 sm:h-32 flex items-center justify-center overflow-hidden">
-                    <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full z-10 shadow-sm">
-                      HOT
-                    </span>
+                    {!isOutOfStock && (
+                      <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full z-10 shadow-sm">
+                        HOT
+                      </span>
+                    )}
+                    {isOutOfStock && (
+                      <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                         <span className="bg-gray-800 text-white text-[10px] font-black px-2 py-1 rounded shadow-sm">
+                           OUT OF STOCK
+                         </span>
+                      </div>
+                    )}
                     <img 
                       src={product.image} 
                       alt={product.name} 
@@ -126,7 +137,7 @@ export default function Home() {
                     <div className="mt-auto">
                       {isLoggedIn ? (
                         <div className="flex items-baseline gap-1 mt-1">
-                          <span className="text-sm font-black text-orange-600">Rs. {defaultTier.price}</span>
+                          <span className={`text-sm font-black ${isOutOfStock ? 'text-gray-500' : 'text-orange-600'}`}>Rs. {defaultTier.price}</span>
                           <span className="text-[10px] text-gray-500 font-semibold">/ {defaultTier.measureQty} {defaultTier.measureUnit}</span>
                         </div>
                       ) : (
@@ -163,13 +174,22 @@ export default function Home() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
         {filteredProducts.map(product => {
           const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A', measureQty: 'N/A' };
+          const isOutOfStock = !product.inStock;
+
           return (
             <div 
               key={product._id} 
-              className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col group cursor-pointer overflow-hidden hover:-translate-y-1" 
-              onClick={() => setSelectedProduct(product)}
+              className={`bg-white rounded-2xl shadow-sm transition-all duration-300 border border-gray-100 flex flex-col group overflow-hidden ${isOutOfStock ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-xl cursor-pointer hover:-translate-y-1'}`} 
+              onClick={() => !isOutOfStock && setSelectedProduct(product)}
             >
               <div className="relative bg-gray-50 p-2 h-36 sm:h-44 md:h-48 flex items-center justify-center overflow-hidden">
+                {isOutOfStock && (
+                  <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                     <span className="bg-gray-800 text-white text-xs font-black px-3 py-1.5 rounded shadow-lg">
+                       OUT OF STOCK
+                     </span>
+                  </div>
+                )}
                 <img 
                   src={product.image} 
                   alt={product.name} 
@@ -188,7 +208,7 @@ export default function Home() {
                 
                 {isLoggedIn ? (
                   <div className="flex items-baseline gap-1 mb-3">
-                    <span className="text-sm sm:text-base font-black text-gray-900">
+                    <span className={`text-sm sm:text-base font-black ${isOutOfStock ? 'text-gray-500' : 'text-gray-900'}`}>
                       Rs. {defaultTier.price}
                     </span>
                     <span className="text-[11px] text-gray-500 font-semibold">
@@ -202,7 +222,14 @@ export default function Home() {
                 )}
                 
                 <div className="mt-auto">
-                  {isLoggedIn ? (
+                  {isOutOfStock ? (
+                    <button 
+                      disabled
+                      className="w-full bg-gray-200 text-gray-500 cursor-not-allowed py-2 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-inner"
+                    >
+                      Out of Stock
+                    </button>
+                  ) : isLoggedIn ? (
                     <button 
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
                       onClick={(e) => {

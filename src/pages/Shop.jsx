@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // लगइन पेजमा पठाउन थपिएको
-import { Search, SlidersHorizontal, ShoppingCart, Lock } from 'lucide-react'; // Lock आइकन थपिएको
+import { useNavigate } from 'react-router-dom';
+import { Search, SlidersHorizontal, ShoppingCart, Lock } from 'lucide-react';
 import axios from 'axios';
 import ProductModal from '../components/ProductModal';
 
@@ -12,7 +12,7 @@ export default function Shop() {
   const [sortBy, setSortBy] = useState('default');
   const [selectedProduct, setSelectedProduct] = useState(null);
 
-  const navigate = useNavigate(); // Navigation को लागि
+  const navigate = useNavigate();
   
   // Login status check
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -75,14 +75,23 @@ export default function Shop() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {filteredProducts.map(product => {
             const defaultTier = product.pricing?.[0] || { price: 0, measureUnit: 'N/A', measureQty: 'N/A' };
+            const isOutOfStock = !product.inStock;
+
             return (
               <div 
                 key={product._id} 
-                className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-200 flex flex-col group cursor-pointer overflow-hidden" 
-                onClick={() => setSelectedProduct(product)}
+                className={`bg-white rounded-2xl shadow-sm transition-all duration-300 border border-gray-200 flex flex-col group overflow-hidden ${isOutOfStock ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-lg cursor-pointer'}`} 
+                onClick={() => !isOutOfStock && setSelectedProduct(product)}
               >
                 {/* Image Section */}
                 <div className="relative bg-white pt-2 h-40 md:h-48">
+                  {isOutOfStock && (
+                    <div className="absolute inset-0 bg-white/40 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                       <span className="bg-gray-800 text-white text-xs font-black px-3 py-1.5 rounded shadow-lg">
+                         OUT OF STOCK
+                       </span>
+                    </div>
+                  )}
                   <img 
                     src={product.image} 
                     alt={product.name} 
@@ -106,7 +115,7 @@ export default function Shop() {
                   {/* Price and Quantity - Conditional Rendering */}
                   {isLoggedIn ? (
                     <div className="flex items-baseline gap-1 mb-4">
-                      <span className="text-base md:text-lg font-black text-gray-900">
+                      <span className={`text-base md:text-lg font-black ${isOutOfStock ? 'text-gray-500' : 'text-gray-900'}`}>
                         Rs. {defaultTier.price}
                       </span>
                       <span className="text-xs md:text-sm text-gray-500 font-semibold">
@@ -121,12 +130,19 @@ export default function Shop() {
                   
                   {/* Button Section */}
                   <div className="mt-auto">
-                    {isLoggedIn ? (
+                    {isOutOfStock ? (
+                      <button 
+                        disabled
+                        className="w-full bg-gray-200 text-gray-500 cursor-not-allowed py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base transition-colors flex items-center justify-center gap-2 shadow-inner"
+                      >
+                        Out of Stock
+                      </button>
+                    ) : isLoggedIn ? (
                       <button 
                         className="w-full bg-[#3b82f6] text-white py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-sm"
                         onClick={(e) => {
-                          e.stopPropagation(); // Modal खुल्नबाट रोक्न
-                          setSelectedProduct(product); // अर्डर गर्न Modal खोल्न
+                          e.stopPropagation(); 
+                          setSelectedProduct(product); 
                         }}
                       >
                         <ShoppingCart size={18} />
@@ -136,8 +152,8 @@ export default function Shop() {
                       <button 
                         className="w-full bg-slate-800 text-white py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base hover:bg-slate-900 transition-colors flex items-center justify-center gap-2 active:scale-95 shadow-sm"
                         onClick={(e) => {
-                          e.stopPropagation(); // पछाडिको कार्ड क्लिक हुनबाट रोक्न
-                          navigate('/login'); // सिधै लगइन पेजमा पठाउन
+                          e.stopPropagation(); 
+                          navigate('/login'); 
                         }}
                       >
                         <Lock size={18} className="text-slate-300" />
@@ -157,7 +173,7 @@ export default function Shop() {
       {selectedProduct && (
         <ProductModal 
           product={selectedProduct} 
-          isLoggedIn={isLoggedIn} // Modal मा पनि Login status पठाउन
+          isLoggedIn={isLoggedIn} 
           onClose={() => setSelectedProduct(null)} 
         />
       )}
