@@ -135,13 +135,43 @@ export default function Home() {
                     </h3>
                     
                     <div className="mt-auto">
-                      {isLoggedIn ? (
-                        <div className="flex items-baseline gap-1 mt-1">
-                          <span className={`text-sm font-black ${isOutOfStock ? 'text-gray-500' : 'text-orange-600'}`}>Rs. {defaultTier.price}</span>
-                          <span className="text-[10px] text-gray-500 font-semibold">/ {defaultTier.measureQty} {defaultTier.measureUnit}</span>
-                        </div>
+                      {isOutOfStock ? (
+                        <button 
+                          disabled
+                          className="w-full bg-gray-200 text-gray-500 cursor-not-allowed py-1.5 rounded-xl font-bold text-[10px] sm:text-xs transition-all flex items-center justify-center mt-2 shadow-inner"
+                        >
+                          Out of Stock
+                        </button>
+                      ) : isLoggedIn ? (
+                        <>
+                          <div className="flex items-baseline gap-1 mt-1 mb-2">
+                            <span className="text-sm font-black text-orange-600">Rs. {defaultTier.price}</span>
+                            <span className="text-[10px] text-gray-500 font-semibold">/ {defaultTier.measureQty} {defaultTier.measureUnit}</span>
+                          </div>
+                          <button 
+                            className="w-full bg-orange-500 hover:bg-orange-600 text-white py-1.5 rounded-xl font-bold text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 shadow-sm active:scale-95"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedProduct(product);
+                            }}
+                          >
+                            <ShoppingCart size={12} />
+                            Order Now
+                          </button>
+                        </>
                       ) : (
-                        <div className="h-5 mt-1"></div>
+                        <div className="flex flex-col mt-2">
+                          <button 
+                            className="w-full bg-slate-800 hover:bg-slate-900 text-white py-1.5 rounded-xl font-bold text-[10px] sm:text-xs transition-all flex items-center justify-center gap-1 shadow-sm active:scale-95"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('/login');
+                            }}
+                          >
+                            <Lock size={10} className="text-slate-300" />
+                            Login to Order
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
